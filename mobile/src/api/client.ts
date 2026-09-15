@@ -1,13 +1,31 @@
+import Constants from 'expo-constants'
 import type { z } from 'zod'
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL
+/**
+ * Adresse du backend, vue depuis le téléphone.
+ *
+ * localhost désignerait le téléphone lui-même. Il faut l'adresse de la machine
+ * qui fait tourner le backend sur le réseau local, et elle change dès qu'on
+ * change de réseau.
+ *
+ * On la déduit donc du serveur de développement Expo, auquel le téléphone est
+ * déjà connecté : c'est forcément la bonne machine et le bon réseau. En cas
+ * d'échec, EXPO_PUBLIC_API_URL prend le relais.
+ */
+function adresseApi(): string {
+  const explicite = process.env.EXPO_PUBLIC_API_URL
+  if (explicite !== undefined && explicite !== '') return explicite
 
-if (BASE_URL === undefined || BASE_URL === '') {
+  const hote = Constants.expoConfig?.hostUri?.split(':')[0]
+  if (hote !== undefined && hote !== '') return `http://${hote}:3000`
+
   throw new Error(
-    "EXPO_PUBLIC_API_URL n'est pas défini. Copiez .env.example en .env et mettez " +
-      "l'adresse IP de la machine qui fait tourner le backend.",
+    "Impossible de déterminer l'adresse du backend. Renseignez EXPO_PUBLIC_API_URL " +
+      'dans mobile/.env avec l\'adresse IP de la machine qui le fait tourner.',
   )
 }
+
+const BASE_URL = adresseApi()
 
 export class ErreurApi extends Error {
   readonly statut: number | null
@@ -26,9 +44,9 @@ export async function appeler<T extends z.ZodType>(
   try {
     reponse = await fetch(`${BASE_URL}${chemin}`)
   } catch {
-    // Le backend n'est pas joignable : éteint, mauvaise adresse, ou téléphone
-    // sur un autre réseau. On ne sait pas lequel, on ne le prétend pas.
-    throw new ErreurApi('Le serveur est injoignable', null)
+    // Le backend n'est pas joignable : éteint, ou téléphone sur un autre
+    // réseau. On ne sait pas lequel, on ne le prétend pas.
+    throw new ErreurApi(`Serveur injoignable sur ${BASE_URL}`, null)
   }
 
   if (!reponse.ok) {
