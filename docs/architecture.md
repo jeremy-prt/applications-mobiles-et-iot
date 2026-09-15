@@ -26,24 +26,23 @@ flowchart LR
 | Traces | Pino | 10.3.1 |
 | Mobile | Expo SDK 57 (React Native 0.86) | expo 57.0.22 |
 
-Nous avons choisi Node parce que le mobile est en React Native : un seul langage pour les
-deux côtés, et le schéma de validation d'un message de télémétrie est écrit une seule fois.
+Nous avons choisi Node parce que l'application mobile est déjà en JavaScript. En écrivant
+le backend dans le même langage, on décrit le format d'un message une seule fois au lieu de
+deux.
 
-Nous avons choisi Express plutôt que NestJS parce qu'il n'y a rien à apprendre de sa
-structure, et que sur 4 jours à deux le temps passé à défendre une architecture à l'oral
-est du temps pris sur le projet lui-même. Plutôt que Fastify, parce que son avantage
-principal est la validation des requêtes HTTP, alors que la validation qui compte chez nous
-porte sur les messages MQTT.
+Nous avons choisi Express parce qu'on n'a que quelques routes à exposer. NestJS nous
+obligerait à apprendre sa façon de structurer une application, et on a 4 jours. Fastify
+serait plus rapide, mais avec 3 capteurs on ne verrait pas la différence.
 
-Nous avons choisi SQLite parce que notre backend est le seul à écrire dans la base, et
-parce qu'un service de base de données en moins dans le Compose, c'est un healthcheck, un
-ordre de démarrage et des identifiants en moins le jour où il faut relancer le projet
-devant le jury en suivant le seul README.
+Nous avons choisi SQLite parce que c'est un simple fichier, sans serveur à lancer à côté.
+Ça fait un service de moins qui peut tomber en panne le jour où on relance tout le projet
+devant le jury. Et avec 3 capteurs qui envoient une mesure toutes les 2 secondes, on n'a
+pas besoin d'une base plus grosse.
 
-Nous avons choisi Expo plutôt que React Native nu parce qu'ajouter une bibliothèque en
-React Native nu impose de recompiler en natif à chaque fois, alors que les modules dont
-nous avons besoin sont déjà compilés dans Expo Go. La documentation officielle de React
-Native recommande d'ailleurs de partir d'un framework et cite Expo.
+Nous avons choisi Expo parce qu'avec React Native seul, il faut recompiler l'application
+entière à chaque fois qu'on ajoute une bibliothèque, ce qui prend plusieurs minutes. Avec
+Expo, tout ce dont on a besoin est déjà inclus : on enregistre le fichier et le téléphone
+se met à jour.
 
 Le détail de chaque choix, avec les alternatives écartées et ce que ça nous coûte, est dans
 `docs/decisions/`.

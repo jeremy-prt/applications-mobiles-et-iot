@@ -6,7 +6,7 @@ On stocke les mesures, le dernier état de chaque objet, les objets et leurs sal
 utilisateurs et leurs droits, et le suivi des commandes.
 
 3 capteurs à une mesure toutes les 2 secondes, soit 129 600 lignes par jour si on gardait
-tout. Un seul écrivain, le consommateur MQTT.
+tout. Notre backend est le seul programme qui écrit dans la base.
 
 ## Options envisagées
 
