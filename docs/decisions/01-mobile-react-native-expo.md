@@ -2,59 +2,64 @@
 
 ## Contexte
 
-L'application doit faire quatre choses qui touchent au matériel et au système, et qui sont
-toutes des points notés du sujet : scanner un QR code avec la caméra et gérer un refus de
-permission, garder un cache consultable hors ligne, détecter la perte et le retour du
-réseau, et reprendre correctement après un passage en arrière-plan.
-
-Le test se fera sur un iPhone réel. On a quatre jours.
+L'application doit scanner un QR code et gérer un refus de permission caméra, garder un
+cache hors ligne, détecter la perte et le retour du réseau, reprendre après un passage en
+arrière-plan, et stocker un jeton d'authentification. Elle appelle une API en HTTP simple
+sur une IP locale. Test sur iPhone réel, 4 jours.
 
 ## Options envisagées
 
-React Native avec Expo, Flutter, natif Swift.
+React Native avec Expo, React Native nu, Flutter, natif Swift.
 
 ## Choix retenu
 
-React Native avec Expo, testé sur iPhone via Expo Go.
+Expo SDK 57 (React Native 0.86), testé dans Expo Go sur iPhone.
 
 ## Pourquoi
 
-Les quatre besoins matériels ci-dessus correspondent chacun à un module fourni par le SDK
-Expo : la caméra et le scan de codes, l'état du réseau, le stockage local et l'état de
-l'application. On ne passe pas de temps à brancher du natif, on passe le temps sur ce qui
-est évalué, c'est à dire le comportement de l'interface face aux incidents.
+La documentation officielle de React Native recommande de partir d'un framework et cite
+Expo, avec `create-expo-app` comme commande de démarrage. Choisir React Native nu, c'est
+maintenir soi-même la couche que Meta conseille de ne pas réécrire.
 
-Expo Go permet de lancer l'application sur un iPhone réel sans build natif et sans compte
-développeur Apple payant. En natif Swift il faudrait Xcode, un provisioning profile et un
-compte à 99 dollars par an pour installer sur un téléphone physique. Sur quatre jours,
-cette seule contrainte suffit à écarter le natif.
+Le coût réel de React Native nu n'est pas la caméra, qui existe aussi en bibliothèque
+tierce. C'est qu'il faut recompiler en natif à chaque ajout de bibliothèque : `pod install`
+plus un build Xcode, 2 à 10 minutes à chaque fois. Avec Expo Go, aucune compilation tant
+qu'on reste dans les modules du SDK.
 
-Le rechargement à chaud change la façon de travailler sur les états d'interface. On doit
-démontrer chargement, vide, erreur et données anciennes, ce qui veut dire les provoquer et
-les regarder des dizaines de fois. Attendre une compilation à chaque essai coûterait des
-heures sur la semaine.
+Nos cinq besoins sont couverts par des modules déjà compilés dans Expo Go : `expo-camera`
+pour le scan et la permission, `expo-secure-store` pour le jeton, `expo-network` pour
+l'état du réseau, `expo-sqlite` pour le cache, et `AppState` qui vient de React Native.
 
-Le sujet précise que la comparaison entre plateformes fait partie de l'analyse, mais que
-produire deux versions distribuées n'est pas exigé. React Native nous laisse un seul code
-et la possibilité de parler de ce qui diffère entre iOS et Android sans avoir à tout écrire
-deux fois.
+L'installation sur l'iPhone prend 10 minutes contre 1 à 2 heures en React Native nu, où il
+faut Xcode, CocoaPods et une signature. Aucun compte Apple payant dans les deux cas, mais
+le profil gratuit de Xcode expire tous les 7 jours, ce qui peut tomber juste avant l'oral.
 
-Le cours fournit un support React Native, donc c'est la techno sur laquelle on peut
-s'appuyer et poser des questions si on bloque.
+Nos appels en `http://192.168.x.x` fonctionnent sans configuration dans Expo Go, qui
+désactive App Transport Security. En React Native nu il faut ajouter
+`NSLocalNetworkUsageDescription` dans Info.plist, absent du template, sinon la première
+requête échoue sans message d'erreur.
 
-Flutter couvre les mêmes besoins et gère très bien les états d'interface. Il faudrait
-apprendre Dart et son modèle de widgets pendant les jours qui doivent servir au projet
-lui-même, et sans support de cours pour nous rattraper.
+Flutter couvre les mêmes besoins, mais il faudrait apprendre Dart pendant les jours du
+projet, sans support de cours pour nous rattraper.
 
 ## Ce que ça coûte
 
-Expo Go n'accepte que les modules du SDK. Si on avait besoin d'une bibliothèque native
-absente, il faudrait passer par un build de développement, ce qui ramènerait Xcode dans
-l'équation. Tout ce que demande le sujet est couvert par le SDK, donc on ne devrait pas y
-arriver.
+Le refus de permission qu'on teste est celui d'Expo Go, pas de notre application : la boîte
+de dialogue dit "Allow Expo Go to access your camera". Notre code de gestion du refus est
+correct, mais la vraie boîte de dialogue n'est pas testée. À dire au jury, et à vérifier en
+fin de projet avec `npx expo run:ios` si on a le temps.
+
+Expo Go ne lance que des projets du SDK qu'il embarque. On fige les versions et on ne met
+pas à jour Expo Go pendant les 4 jours.
+
+Rien d'installable n'existe hors d'Expo Go. Si le prof veut l'application sur son propre
+iPhone, il faudrait un build, donc un compte Apple payant.
 
 ## Conséquence
 
-L'iPhone et le Mac doivent être sur le même réseau Wi-Fi. L'application doit viser
-l'adresse IP locale du Mac et pas `localhost`, qui sur le téléphone désigne le téléphone.
-Cette adresse sera une variable de configuration, pas une valeur écrite en dur.
+L'iPhone et le Mac doivent être sur le même Wi-Fi, et l'API doit écouter sur `0.0.0.0` et
+pas sur `127.0.0.1`. L'adresse du backend est une variable de configuration. Si le Wi-Fi de
+l'école isole les clients entre eux, repli sur `npx expo start --tunnel`.
+
+Le compte Expo gratuit est à créer avant de commencer : depuis le SDK 57, il faut être
+connecté au même compte dans le CLI et dans Expo Go.

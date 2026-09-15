@@ -15,18 +15,38 @@ flowchart LR
 
 ## Technologies retenues
 
-Les justifications complètes sont dans `docs/decisions/`.
+| Couche | Techno | Version |
+|---|---|---|
+| Runtime | Node.js LTS | 24.21.0 |
+| Client MQTT | MQTT.js | 5.15.2 |
+| API | Express | 5.2.1 |
+| Base | SQLite via better-sqlite3 | 13.0.3 |
+| Validation | Zod | 4.6.5 |
+| Authentification | jose et bcryptjs | 6.2.12 et 3.0.3 |
+| Traces | Pino | 10.3.1 |
+| Mobile | Expo SDK 57 (React Native 0.86) | expo 57.0.22 |
 
-| Couche | Techno | Version | En une phrase |
-|---|---|---|---|
-| Runtime | Node.js LTS | 24.21.0 | Même langage que le mobile |
-| Client MQTT | MQTT.js | 5.15.2 | Seul client Node maintenu, reconnexion et QoS 1 inclus |
-| API | Express | 5.2.1 | Ne prend pas le contrôle du démarrage, ce qui laisse ouvrir MQTT en premier |
-| Base | SQLite (better-sqlite3) | 13.0.3 | Un seul écrivain, unicité gérée par la base, aucun service à administrer |
-| Validation | Zod | 4.6.5 | Rejet des messages invalides avec une erreur explicable dans les traces |
-| Authentification | jose et bcryptjs | 6.2.12 et 3.0.3 | JWT sans état, pas de stockage de sessions |
-| Traces | Pino | 10.3.1 | Logs JSON filtrables par device_id et command_id |
-| Mobile | React Native avec Expo | SDK à figer en J1 | Caméra, réseau, cache et cycle de vie fournis par le SDK |
+Nous avons choisi Node parce que le mobile est en React Native : un seul langage pour les
+deux côtés, et le schéma de validation d'un message de télémétrie est écrit une seule fois.
+
+Nous avons choisi Express plutôt que NestJS parce qu'il n'y a rien à apprendre de sa
+structure, et que sur 4 jours à deux le temps passé à défendre une architecture à l'oral
+est du temps pris sur le projet lui-même. Plutôt que Fastify, parce que son avantage
+principal est la validation des requêtes HTTP, alors que la validation qui compte chez nous
+porte sur les messages MQTT.
+
+Nous avons choisi SQLite parce que notre backend est le seul à écrire dans la base, et
+parce qu'un service de base de données en moins dans le Compose, c'est un healthcheck, un
+ordre de démarrage et des identifiants en moins le jour où il faut relancer le projet
+devant le jury en suivant le seul README.
+
+Nous avons choisi Expo plutôt que React Native nu parce qu'ajouter une bibliothèque en
+React Native nu impose de recompiler en natif à chaque fois, alors que les modules dont
+nous avons besoin sont déjà compilés dans Expo Go. La documentation officielle de React
+Native recommande d'ailleurs de partir d'un framework et cite Expo.
+
+Le détail de chaque choix, avec les alternatives écartées et ce que ça nous coûte, est dans
+`docs/decisions/`.
 
 ## Flux des données
 
