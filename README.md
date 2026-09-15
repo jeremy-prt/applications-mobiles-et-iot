@@ -60,4 +60,4 @@ est décrit dans docs/observations-kit.md.
 
 ## Équipe
 
-Jérémy Perret et Kylian Patrie.
+Jérémy Perret et Kylian Patry.
