@@ -55,8 +55,8 @@ docker compose run --rm tools incident sensor-001 duplicate
 docker compose run --rm tools incident sensor-001 reset
 ```
 
-La liste complète est dans infra/kit/README.md, et ce que ces incidents produisent
-est décrit dans docs/observations-kit.md.
+La liste complète est dans infra/kit/README.md. Les résultats attendus pour chacun sont
+dans docs/recette.md.
 
 ## Équipe
 

@@ -4,8 +4,6 @@ node_modules/
 __pycache__/
 *.pyc
 
-# fichier de travail perso
-plan-perso.md
-
-# skill de projet, perso
+# notes de travail et config perso, hors livrable
+notes/
 .claude/
