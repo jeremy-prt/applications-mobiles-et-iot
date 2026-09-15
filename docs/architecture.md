@@ -36,22 +36,22 @@ Les alternatives écartées et ce que chaque choix nous coûte sont dans `docs/d
 
 ```
 backend/src/
-  schemas/    schémas Zod, partagés entre MQTT et HTTP
+  schemas/    schémas Zod : le format des messages et des requêtes
   domain/     les règles : doublon, ordre des mesures, fraîcheur, commandes, alertes
   db/         requêtes SQL et migrations
   mqtt/       connexion au broker, abonnements, publication des commandes
   http/       routes Fastify
 ```
 
-Architecture en couches, avec les règles métier isolées dans `domain/`. `mqtt/` et `http/`
-appellent `domain/`, jamais l'inverse, et `domain/` ne connaît ni le broker ni Fastify.
+| Sujet | Choix | Pourquoi ce choix |
+|---|---|---|
+| Architecture du backend | En couches, avec les règles métier isolées dans `domain/` | Nous avons choisi cette organisation parce que nos règles ne doivent dépendre ni du broker ni du serveur HTTP. Un test qui vérifie qu'un message rejoué ne crée pas de doublon appelle une fonction et lui passe deux messages, au lieu de devoir lancer un broker. Le sujet compte le test automatisé comme une meilleure preuve qu'une capture d'écran |
+| Règle de dépendance | `mqtt/` et `http/` appellent `domain/`, jamais l'inverse | Nous avons choisi cette règle parce que le seuil de fraîcheur sert à la fois à l'ingestion et à l'affichage. S'il était écrit dans le code MQTT puis redéfini dans une route, les deux finiraient par diverger |
+| Architecture hexagonale | Écartée | Nous l'avons écartée parce qu'elle ajoute des interfaces pour pouvoir changer de base ou de broker, alors que notre broker est imposé par le sujet et notre base choisie pour 4 jours. Son bénéfice réel, isoler le métier, on l'a déjà avec la règle de dépendance |
+| CQRS | Écarté | Nous l'avons écarté parce qu'il sépare le modèle d'écriture du modèle de lecture, alors que nos deux chemins travaillent sur les mêmes tables. Notre table de dernier état joue déjà ce rôle en une requête SQL |
+| Microservices | Écartés | Nous les avons écartés parce que séparer l'ingestion de l'API obligerait à partager l'état entre deux services, alors que c'est justement la cohérence de cet état, le doublon et l'ordre des mesures, qui est notée |
 
-Concrètement, un test qui vérifie qu'un message rejoué ne crée pas de doublon appelle une
-fonction et lui passe deux messages, sans lancer de broker. Le sujet classe le test
-automatisé au-dessus de la capture d'écran comme preuve.
-
-L'architecture hexagonale, CQRS et les microservices ont été envisagés et écartés. Le
-détail est dans `docs/decisions/04-architecture-du-backend.md`.
+Le détail de chaque point est dans `docs/decisions/04-architecture-du-backend.md`.
 
 ## Flux des données
 
