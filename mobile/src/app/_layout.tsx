@@ -10,6 +10,10 @@ const queryClient = new QueryClient({
   },
 })
 
+/**
+ * Racine de l'application : les fournisseurs communs et la pile de navigation.
+ * Les écrans sont dans les autres fichiers de `src/app/`, un fichier par route.
+ */
 export default function RacineLayout() {
   // Le téléphone peut être en mode clair ou sombre. Sans ce branchement, les
   // composants suivent le réglage du système mais pas les écrans autour, et le
@@ -26,10 +30,18 @@ export default function RacineLayout() {
             headerStyle: { backgroundColor: theme.colors.surface },
             headerTitleStyle: { color: theme.colors.onSurface },
             headerTintColor: theme.colors.onSurface,
+            // Sans cela, l'en-tête pose un trait sur Android et sur le web, et
+            // une ombre sur iOS, alors que le fond est déjà de la même couleur.
+            headerShadowVisible: false,
             contentStyle: { backgroundColor: theme.colors.background },
           }}
         >
           <Stack.Screen name="index" options={{ title: 'Campus connecté' }} />
+          {/* Les écrans de détail remplacent ce titre par le nom de la salle ou
+              du capteur dès qu'ils l'ont. Sans ce titre d'attente, l'en-tête
+              afficherait le nom du fichier de route pendant le chargement. */}
+          <Stack.Screen name="salles/[id]" options={{ title: 'Salle' }} />
+          <Stack.Screen name="objets/[id]" options={{ title: 'Capteur' }} />
         </Stack>
       </PaperProvider>
     </QueryClientProvider>

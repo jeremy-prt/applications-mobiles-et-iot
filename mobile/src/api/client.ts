@@ -12,20 +12,15 @@ import type { z } from 'zod'
  * déjà connecté : c'est forcément la bonne machine et le bon réseau. En cas
  * d'échec, EXPO_PUBLIC_API_URL prend le relais.
  */
-function adresseApi(): string {
+function adresseApi(): string | null {
   const explicite = process.env.EXPO_PUBLIC_API_URL
   if (explicite !== undefined && explicite !== '') return explicite
 
   const hote = Constants.expoConfig?.hostUri?.split(':')[0]
   if (hote !== undefined && hote !== '') return `http://${hote}:3000`
 
-  throw new Error(
-    "Impossible de déterminer l'adresse du backend. Renseignez EXPO_PUBLIC_API_URL " +
-      'dans mobile/.env avec l\'adresse IP de la machine qui le fait tourner.',
-  )
+  return null
 }
-
-const BASE_URL = adresseApi()
 
 export class ErreurApi extends Error {
   readonly statut: number | null
@@ -40,13 +35,25 @@ export async function appeler<T extends z.ZodType>(
   chemin: string,
   schema: T,
 ): Promise<z.infer<T>> {
+  // Résolue à chaque appel, et non au chargement du module : une exception au
+  // chargement casserait le bundle entier, alors que l'écran sait afficher une
+  // erreur et proposer de réessayer.
+  const base = adresseApi()
+  if (base === null) {
+    throw new ErreurApi(
+      "Impossible de déterminer l'adresse du backend. Renseignez EXPO_PUBLIC_API_URL " +
+        "dans mobile/.env avec l'adresse de la machine qui le fait tourner.",
+      null,
+    )
+  }
+
   let reponse: Response
   try {
-    reponse = await fetch(`${BASE_URL}${chemin}`)
+    reponse = await fetch(`${base}${chemin}`)
   } catch {
     // Le backend n'est pas joignable : éteint, ou téléphone sur un autre
     // réseau. On ne sait pas lequel, on ne le prétend pas.
-    throw new ErreurApi(`Serveur injoignable sur ${BASE_URL}`, null)
+    throw new ErreurApi(`Serveur injoignable sur ${base}`, null)
   }
 
   if (!reponse.ok) {

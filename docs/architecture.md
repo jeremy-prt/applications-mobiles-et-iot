@@ -54,6 +54,22 @@ Règle de dépendance : `mqtt/` et `http/` appellent `domain/`, jamais l'inverse
 CQRS et microservices ont été examinés et écartés, voir
 `docs/decisions/04-architecture-du-backend.md`.
 
+```
+mobile/src/
+  app/         les routes Expo Router, rien d'autre
+  api/         client HTTP, schémas Zod, requêtes
+  components/  composants d'affichage réutilisés
+  lib/         fonctions sans dépendance
+```
+
+Règles de dépendance : seul `app/` connaît les routes, seul `api/` appelle le réseau. Le
+découpage par domaine a été examiné et écarté, voir
+`docs/decisions/07-architecture-de-l-application-mobile.md`.
+
+Les trois écrans lisent la même réponse de `GET /rooms`, sous une seule clé de cache. Le
+détail d'une salle et celui d'un objet en sont dérivés, pas rechargés : deux écrans ne
+peuvent donc pas afficher deux valeurs différentes du même capteur.
+
 ## Actualisation côté mobile
 
 Le sujet demande d'expliquer comment l'application actualise ses données et ce que
