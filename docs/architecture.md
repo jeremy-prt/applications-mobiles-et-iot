@@ -54,6 +54,28 @@ Règle de dépendance : `mqtt/` et `http/` appellent `domain/`, jamais l'inverse
 CQRS et microservices ont été examinés et écartés, voir
 `docs/decisions/04-architecture-du-backend.md`.
 
+## Actualisation côté mobile
+
+Le sujet demande d'expliquer comment l'application actualise ses données et ce que
+« récent » veut dire.
+
+Récent : une mesure de moins de 30 secondes, seuil calculé par le backend et renvoyé dans
+le champ `is_stale` de l'API. Le téléphone ne le recalcule pas, son horloge peut différer.
+
+| Déclencheur | Comportement |
+|---|---|
+| Ouverture d'un écran | Appel si les données en cache ont plus de 15 secondes |
+| Retour de l'application au premier plan | Nouvel appel |
+| Retour du réseau | Nouvel appel |
+| Pendant qu'un écran est ouvert | Rafraîchissement toutes les 15 secondes |
+| Après l'envoi d'une commande | Interrogation du suivi toutes les 2 secondes, jusqu'à un statut définitif ou 15 secondes |
+
+L'écran distingue quatre états : chargement, vide, erreur, et donnée ancienne. L'état hors
+ligne est à part, il concerne le téléphone et non la donnée.
+
+Trois situations ne doivent jamais être confondues : l'objet est déconnecté, l'objet est en
+ligne mais ne mesure plus, ou le téléphone n'a plus de réseau.
+
 ## Flux des données
 
 **Une mesure.** Le capteur publie sur `campus/v1/devices/{id}/telemetry`. Le backend, abonné
