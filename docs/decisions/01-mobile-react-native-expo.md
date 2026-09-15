@@ -46,7 +46,7 @@ projet, sans support de cours pour nous rattraper.
 
 Le refus de permission qu'on teste est celui d'Expo Go, pas de notre application : la boîte
 de dialogue dit "Allow Expo Go to access your camera". Notre code de gestion du refus est
-correct, mais la vraie boîte de dialogue n'est pas testée. À dire au jury, et à vérifier en
+correct, mais la vraie boîte de dialogue n'est pas testée. À signaler, et à vérifier en
 fin de projet avec `npx expo run:ios` si on a le temps.
 
 Expo Go ne lance que des projets du SDK qu'il embarque. On fige les versions et on ne met

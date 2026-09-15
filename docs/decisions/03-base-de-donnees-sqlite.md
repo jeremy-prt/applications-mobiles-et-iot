@@ -55,7 +55,7 @@ de la base. Pour une sauvegarde, `VACUUM INTO`, pas une copie du `.db`.
 
 | Pragma | Valeur | Pourquoi |
 |---|---|---|
-| `journal_mode` | WAL | Lectures et écriture ne se bloquent pas. On peut lire la base avec `sqlite3` pendant que le backend écrit, ce qui sert de preuve en démonstration |
+| `journal_mode` | WAL | Lectures et écriture ne se bloquent pas. On peut lire la base avec `sqlite3` pendant que le backend écrit, ce qui sert de preuve pendant la recette |
 | `foreign_keys` | ON | Désactivé par défaut dans SQLite |
 | `synchronous` | NORMAL | Suffisant avec WAL |
 | `busy_timeout` | 5000 | Évite un échec immédiat si une lecture traîne |
