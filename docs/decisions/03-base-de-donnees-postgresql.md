@@ -24,10 +24,9 @@ Nos données sont pleines de liens qu'il faut garantir : un capteur appartient �
 un utilisateur porte des rôles, une commande a un émetteur et zéro ou un résultat, une
 alerte pointe une règle et un capteur. Ce sont des clés étrangères.
 
-Surtout, la déduplication est une contrainte d'unicité sur `(device_id, message_id)`. C'est
-la base qui doit la garantir, pas notre code. Si on écrivait en JavaScript un test "ce
-message existe-t-il déjà ?" suivi d'une insertion, et qu'un jour deux consommateurs
-tournaient en parallèle, les deux liraient "non" et les deux insèreraient.
+Surtout, la déduplication est une contrainte d'unicité, que la base doit garantir. Un test
+applicatif « ce message existe-t-il déjà ? » suivi d'une insertion serait une course : avec
+deux consommateurs en parallèle, les deux lisent « non » et les deux insèrent.
 
 MongoDB sait faire un index unique. Mais il ne sait pas joindre capteurs, salles,
 utilisateurs et droits sans dénormaliser, et dénormaliser les droits c'est les rendre

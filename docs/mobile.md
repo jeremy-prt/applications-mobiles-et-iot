@@ -1,7 +1,5 @@
 # Application mobile
 
-Ce que l'application affiche, et comment elle se comporte quand ça se passe mal.
-
 ## Écrans
 
 ```
@@ -31,12 +29,11 @@ Détail d'un objet : mesures, historique, commande de ventilation
 | Erreur | Le message, et un bouton pour réessayer | L'appel a échoué |
 | Données anciennes | La valeur, sa date, et une mention visible | Le backend renvoie `is_stale` à vrai |
 
-Le piège à éviter : 0 degré et 0 ppm sont des valeurs valides. On ne s'en sert jamais pour
-signifier l'absence de donnée.
+0 degré et 0 ppm sont des valeurs valides : on ne s'en sert jamais pour signifier l'absence
+de donnée.
 
-Ces quatre états ne se confondent pas avec l'état hors ligne, qui concerne le téléphone et
-pas la donnée. Une bannière en haut de l'écran l'annonce, et le contenu du cache reste
-affiché avec sa date.
+L'état hors ligne est à part, il concerne le téléphone et pas la donnée. Une bannière
+l'annonce, et le cache reste affiché avec sa date.
 
 ## Trois situations à ne jamais confondre
 
@@ -60,11 +57,10 @@ pour la même mesure.
 | Pendant qu'un écran est ouvert | Rafraîchissement toutes les 15 secondes |
 | Après l'envoi d'une commande | Interrogation du suivi de la commande toutes les 2 secondes, jusqu'à un statut définitif ou 15 secondes |
 
-Le choix des 15 secondes : les capteurs publient toutes les 2 secondes, donc rafraîchir plus
-souvent afficherait des variations d'un point de CO2 sans intérêt, et consommerait la
-batterie. Une donnée de 15 secondes reste très en dessous du seuil de fraîcheur de 30
-secondes, donc l'affichage ne passe jamais en « ancienne » à cause de notre propre rythme
-d'actualisation.
+Pourquoi 15 secondes : les capteurs publient toutes les 2 secondes, mais rafraîchir aussi
+vite afficherait des variations d'un point de CO2 et viderait la batterie. Et 15 reste bien
+sous le seuil de fraîcheur de 30, donc l'affichage ne passe jamais en « ancienne » à cause
+de notre propre rythme.
 
 ## Hors ligne
 
@@ -73,9 +69,9 @@ La consultation est obligatoire, les commandes sont bloquées.
 Le cache est écrit sur le disque du téléphone, donc il survit à la fermeture complète de
 l'application. Chaque donnée affichée porte sa date.
 
-Une tentative de commande hors ligne affiche une explication et n'est pas mise en file. Le
-sujet l'interdit explicitement : elle ne doit pas être rejouée silencieusement au retour du
-réseau, parce que l'utilisateur ne saurait pas qu'une action part sans qu'il la redemande.
+Une commande tentée hors ligne affiche une explication et n'est pas mise en file. Le sujet
+l'interdit : rejouée au retour du réseau, une action partirait sans que l'utilisateur la
+redemande.
 
 ## Commande de ventilation
 
@@ -87,8 +83,7 @@ Trois retours, et jamais autre chose.
 | Confirmé | Le backend a reçu le résultat de l'objet |
 | Échec ou résultat inconnu | Rien n'est revenu dans le délai |
 
-L'application n'affiche jamais « activé » sur un simple clic. Une commande acceptée n'est
-pas une action réalisée.
+L'application n'affiche jamais « activé » sur un simple clic.
 
 ## Scan de QR code et permission caméra
 

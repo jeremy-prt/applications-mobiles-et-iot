@@ -36,15 +36,12 @@ La règle de dépendance : `mqtt/` et `http/` appellent `domain/`, jamais l'inve
 
 ## Pourquoi
 
-Les règles du sujet sont dans `domain/`, donc testables sans lancer un broker. Un test qui
-vérifie qu'un message rejoué ne crée pas de doublon appelle une fonction et lui passe deux
-messages. Il ne publie rien sur MQTT et n'ouvre pas de serveur HTTP. Le sujet classe le test
-automatisé au-dessus de la capture d'écran comme preuve : ce découpage est ce qui rend ces
-tests possibles.
+Les règles sont dans `domain/`, donc testables sans broker : un test de déduplication
+appelle une fonction et lui passe deux messages. Le sujet classe le test automatisé
+au-dessus de la capture d'écran.
 
-Ça évite aussi de dupliquer une règle. Le seuil de fraîcheur est utilisé à l'ingestion et à
-l'affichage. S'il était écrit dans le handler MQTT et redéfini dans une route, les deux
-finiraient par diverger.
+Ça évite aussi de dupliquer une règle. Le seuil de fraîcheur sert à l'ingestion et à
+l'affichage ; écrit à deux endroits, il finirait par diverger.
 
 Une commande traverse les mêmes couches qu'une mesure, en sens inverse : `http/`, puis
 `domain/`, puis `mqtt/`.
