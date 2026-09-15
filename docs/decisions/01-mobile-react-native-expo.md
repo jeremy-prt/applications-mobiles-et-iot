@@ -26,9 +26,8 @@ tierce. C'est qu'il faut recompiler en natif à chaque ajout de bibliothèque : 
 plus un build Xcode, 2 à 10 minutes à chaque fois. Avec Expo Go, aucune compilation tant
 qu'on reste dans les modules du SDK.
 
-Nos cinq besoins sont couverts par des modules déjà compilés dans Expo Go : `expo-camera`
-pour le scan et la permission, `expo-secure-store` pour le jeton, `expo-network` pour
-l'état du réseau, `expo-sqlite` pour le cache, et `AppState` qui vient de React Native.
+Nos cinq besoins sont couverts par des modules déjà compilés dans Expo Go. Le détail des
+bibliothèques retenues est dans `docs/decisions/06`.
 
 L'installation sur l'iPhone prend 10 minutes contre 1 à 2 heures en React Native nu, où il
 faut Xcode, CocoaPods et une signature. Aucun compte Apple payant dans les deux cas, mais
@@ -63,3 +62,23 @@ l'école isole les clients entre eux, repli sur `npx expo start --tunnel`.
 
 Le compte Expo gratuit est à créer avant de commencer : depuis le SDK 57, il faut être
 connecté au même compte dans le CLI et dans Expo Go.
+
+## Aide de l'IA
+
+L'IA a d'abord justifié Expo par « il fournit la caméra », et a affirmé qu'un compte Apple
+à 99 dollars par an était obligatoire pour installer sur un iPhone.
+
+Les deux ont été rejetés. React Native sans Expo a aussi des bibliothèques de caméra, donc
+l'argument ne départage rien. Et le provisionnement gratuit de Xcode permet d'installer sur
+son propre iPhone avec un simple identifiant Apple : le vrai coût est le profil qui expire
+tous les 7 jours, pas le prix.
+
+Retenu après vérification : le coût réel de React Native sans Expo est la recompilation
+native à chaque ajout de bibliothèque, et la documentation officielle de React Native
+recommande elle-même de partir d'un framework.
+
+## Vérification
+
+À faire en J1, au moment de créer le projet mobile : mesurer le temps entre
+`npx create-expo-app` et le premier écran affiché sur l'iPhone, et vérifier qu'un appel en
+`http://192.168.x.x:3000/rooms` aboutit sans configuration.

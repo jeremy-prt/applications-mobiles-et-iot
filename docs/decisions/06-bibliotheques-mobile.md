@@ -11,8 +11,6 @@ on a besoin au retour d'un scan de QR code.
 
 ## Appels réseau et cache : TanStack Query 5.102.8
 
-C'est le choix central de l'application, parce qu'il donne d'origine ce que le sujet note.
-
 Il fournit l'état de chargement, l'état d'erreur, et surtout `dataUpdatedAt`, la date de la
 dernière mise à jour, qui est exactement ce qu'on affiche pour signaler des données
 anciennes. Pour la commande de ventilation, il rend un statut qui vaut `pending`, `success`
@@ -95,3 +93,24 @@ En pratique, cela exclut MMKV, `react-native-keychain`, `react-native-vision-cam
 les notifications poussées, qui ne fonctionnent plus dans Expo Go depuis le SDK 53. Les
 notifications locales fonctionnent toujours. Les tâches de fond ne sont pas fiables dans
 Expo Go, donc on ne construit pas la synchronisation dessus.
+
+## Aide de l'IA
+
+L'IA a d'abord proposé d'ajouter Zustand pour l'état global. Rejeté après examen : les
+données viennent du serveur et sont déjà gérées par TanStack Query, une seconde source de
+vérité n'apporterait rien.
+
+Elle a aussi listé `expo-network` et `expo-sqlite` dans une première réponse, puis NetInfo
+et AsyncStorage dans une seconde. Tranché sur la seconde : NetInfo distingue mieux être
+connecté d'avoir accès au réseau, et le module de persistance officiel de TanStack Query
+est écrit pour AsyncStorage.
+
+Elle a enfin proposé la version d'AsyncStorage publiée sur npm. Corrigé : elle est
+incompatible avec ce qu'embarque Expo Go, il faut passer par `npx expo install`.
+
+## Vérification
+
+À faire en J1 et J2, à la création du projet mobile : couper le Wi-Fi du téléphone après une
+consultation réussie et vérifier que les dernières données restent affichées avec leur date,
+puis fermer complètement l'application et la rouvrir hors ligne pour vérifier que le cache
+a bien survécu.

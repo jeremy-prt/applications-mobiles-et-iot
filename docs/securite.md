@@ -1,8 +1,5 @@
 # Sécurité
 
-Ce document décrit les choix de sécurité et les limites assumées. Il est mis à jour au fur
-et à mesure du développement.
-
 ## Identités
 
 Deux familles d'identités, qu'il ne faut pas confondre.
@@ -33,8 +30,9 @@ un retrait de droit ne doit pas continuer à autoriser.
 ## Secrets
 
 Aucun secret réel n'est dans le dépôt. Les mots de passe de la base et la clé de signature
-des jetons sont des variables d'environnement, avec un fichier `.env.example` qui liste les
-noms sans les valeurs.
+des jetons sont des variables d'environnement, listées sans valeur sensible dans
+`.env.example` à la racine. Le Compose refuse de démarrer avec un message clair si le
+fichier `.env` n'a pas été créé.
 
 Les identifiants du kit (`backend-demo`, `teacher-demo`) sont des identifiants de
 démonstration publics fournis par l'école, publiés dans un dépôt public. Ce ne sont pas des
@@ -42,7 +40,7 @@ secrets, et ils ne servent que localement.
 
 ## Protection des échanges
 
-Rien n'est chiffré dans cet environnement, et c'est assumé.
+Rien n'est chiffré dans cet environnement.
 
 Le broker MQTT du kit écoute en clair, sur 127.0.0.1 uniquement. L'API est appelée par le
 téléphone en HTTP simple sur le réseau local, parce qu'un certificat HTTPS valide sur une

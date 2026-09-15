@@ -26,7 +26,7 @@ Toutes les routes sauf la connexion attendent un en-tête
 | GET | `/rooms` | Les salles avec la dernière mesure de chacune | consultation |
 | GET | `/rooms/:id` | Une salle et ses objets | consultation |
 | GET | `/devices/:id` | Le détail d'un objet, son état et sa fraîcheur | consultation |
-| GET | `/devices/:id/telemetry` | L'historique borné d'un objet | consultation |
+| GET | `/devices/:id/telemetry` | L'historique borné d'un objet, 500 points au maximum par appel | consultation |
 | POST | `/devices/:id/commands` | Demander l'activation ou l'arrêt de la ventilation | commande |
 | GET | `/commands/:id` | Le suivi d'une commande | consultation |
 | POST | `/associations` | Associer un objet scanné à une salle | commande |
@@ -58,8 +58,23 @@ la fraîcheur.
 `POST /devices/:id/commands` ne renvoie pas le résultat de l'action. Il renvoie un
 identifiant de commande et le statut `pending`.
 
-Le mobile interroge ensuite `GET /commands/:id` jusqu'à obtenir un statut définitif :
-`executed`, `failed`, `expired` ou `unknown`.
+Le mobile interroge ensuite `GET /commands/:id` jusqu'à obtenir un statut définitif.
+
+Nos statuts ne sont pas ceux du kit. Le simulateur répond `executed` ou `rejected` avec une
+raison, et ne répond pas du tout quand il est en mode sans réponse. La correspondance :
+
+| Notre statut | D'où il vient |
+|---|---|
+| `pending` | La commande est partie, rien n'est encore revenu |
+| `executed` | Le simulateur a répondu `executed` |
+| `rejected` | Le simulateur a répondu `rejected`, sa raison est conservée |
+| `unknown` | Rien n'est revenu dans les 15 secondes. On ne sait pas si l'action a eu lieu |
+
+Il n'y a pas de statut `failed` : un échec supposerait qu'on sait que l'action n'a pas eu
+lieu, ce qui n'est jamais le cas en l'absence de réponse.
+
+Une réponse arrivant après les 15 secondes est quand même traitée et corrélée par son
+`command_id`. L'état réel de la ventilation reste celui du topic `state`.
 
 C'est voulu. Une commande acceptée n'est pas une action réalisée, et l'application ne doit
 jamais afficher "activé" tant que l'objet n'a pas confirmé.

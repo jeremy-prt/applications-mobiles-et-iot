@@ -2,7 +2,7 @@
 
 ## Accès à la base : pg et Kysely, pas un ORM
 
-Les deux requêtes qui portent tout le projet sont
+Les deux requêtes que le sujet note explicitement, la déduplication et la non-régression du dernier état, sont
 `INSERT ... ON CONFLICT (device_id, message_id) DO NOTHING` pour la déduplication, et
 `UPDATE device_state ... WHERE recorded_at < :nouvelle` pour ne pas régresser sur une
 mesure en retard.
@@ -47,8 +47,36 @@ contrôle est au même endroit pour toutes.
 Les rôles sont en base et vérifiés à chaque appel, pas seulement lus dans le jeton. Un jeton
 émis avant un retrait de droit ne doit pas continuer à autoriser.
 
-argon2 est la recommandation actuelle pour hacher des mots de passe. bcrypt reste
-acceptable, mais il est plus ancien et tronque au-delà de 72 octets.
+argon2id est ce que recommande l'OWASP pour hacher un mot de passe. bcrypt reste
+acceptable, mais il tronque au-delà de 72 octets.
 
 Limite assumée : un JWT ne se révoque pas. Durée de vie courte et pas de refresh, qui n'est
 pas dans le périmètre.
+
+## Aide de l'IA
+
+L'IA a d'abord proposé bcryptjs, en avançant qu'il évitait une dépendance native. Corrigé :
+on accepte déjà une dépendance native pour le pilote de base, donc l'argument était
+incohérent. argon2id est le choix recommandé par l'OWASP, et il fournit des binaires
+précompilés pour les deux architectures dont on a besoin.
+
+Elle a aussi écrit que jsonwebtoken était obsolète. Corrigé : il est toujours maintenu. Les
+arguments réels pour jose sont l'absence de dépendances et l'appui sur la Web Crypto API.
+
+Elle proposait enfin `INSERT OR IGNORE` pour la déduplication. Rejeté après vérification :
+cette forme avalerait aussi les violations de contrainte autres que l'unicité, et un
+message malformé serait compté comme un doublon.
+
+## Vérification
+
+Le rejet d'un message invalide produit bien une erreur exploitable dans les traces, vérifié
+sur le système en marche :
+
+```
+"issues":[{"expected":"number","code":"invalid_type",
+           "path":["co2","value"],
+           "message":"Invalid input: expected number, received string"}]
+```
+
+Le chemin du champ fautif est présent, ce qui est exactement ce que le sujet demande pour
+expliquer un rejet.

@@ -1,7 +1,7 @@
 # Recette
 
 Les 13 scénarios obligatoires du sujet. Chacun doit avoir un résultat déclaré, même en
-cas d'échec. Un scénario raté mais expliqué compte, un scénario passé sous silence non.
+cas d'échec.
 
 Les seuils et délais utilisés doivent être déclarés avant les tests, dans
 docs/architecture.md.

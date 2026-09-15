@@ -25,8 +25,7 @@ En TypeScript, on décrit le message une fois avec Zod, et les types en sont dé
 automatiquement. Si quelqu'un écrit `message.co2` au lieu de `message.co2.value`, l'erreur
 apparaît à la compilation au lieu d'apparaître en démonstration.
 
-En production, un backend Node se écrit en TypeScript. Le coût est faible ici parce que les
-types viennent des schémas qu'on écrit de toute façon.
+Le coût est faible ici parce que les types viennent des schémas qu'on écrit de toute façon.
 
 ## Pourquoi Fastify
 
@@ -37,15 +36,9 @@ schéma, deux usages. Avec Express, il faudrait revalider à la main dans chaque
 Pino est intégré à Fastify. Le sujet demande des traces qui permettent de suivre une mesure
 et une commande, donc on aurait branché Pino de toute façon.
 
-Fastify est effectivement plus rapide qu'Express sur le nombre de requêtes servies par
-seconde. Ce n'est pas notre argument, parce que ça ne joue pas ici : le mobile fait quelques
-appels par minute sur neuf routes.
-
-Il faut aussi éviter une confusion. La vitesse à laquelle les mesures arrivent ne dépend pas
-du tout du framework HTTP : les messages MQTT sont reçus par le client MQTT et écrits en
-base, sans jamais passer par Fastify. Le framework n'est sur le chemin que des appels du
-mobile. Ce qui détermine la vitesse d'ingestion, c'est le broker, le QoS, et le temps
-d'écriture en base.
+La différence de débit HTTP avec Express ne joue pas ici, le mobile fait quelques appels par
+minute. Et elle ne joue pas non plus sur la vitesse d'arrivée des mesures, qui passent par
+le client MQTT et la base, jamais par Fastify.
 
 NestJS apporte une structure toute faite, mais impose d'apprendre ses modules, son
 injection de dépendances et ses décorateurs. Sur 4 jours à deux, c'est du temps pris sur les
@@ -58,3 +51,27 @@ la première route protégée. Une demi-journée environ.
 
 TypeScript ajoute une étape de compilation. On utilise le support natif de Node 24 pour
 exécuter du TypeScript en développement, et `tsc` pour l'image de production.
+
+## Aide de l'IA
+
+L'IA a d'abord recommandé Express, en avançant qu'il n'y avait « rien à apprendre puisqu'on
+le connaît déjà ». Argument rejeté : il défend notre confort, pas la techno.
+
+Elle a ensuite justifié Express 5 par le fait qu'il transmet les promesses rejetées au
+gestionnaire d'erreur, « puisque nos routes seront asynchrones car elles lisent la base ».
+Corrigé : notre pilote de base est synchrone, donc la prémisse était fausse. Et cette
+protection ne couvre de toute façon pas le gestionnaire de messages MQTT, qui est un
+écouteur d'événement.
+
+Elle a aussi affirmé que NestJS ne savait pas gérer un client MQTT au démarrage. Corrigé
+après vérification : NestJS a `OnModuleInit` et un transport MQTT intégré. Le seul argument
+honnête contre lui est le temps d'apprentissage.
+
+## Vérification
+
+Le service tourne et répond : `curl http://localhost:3000/health` renvoie
+`{"status":"ok","db":true}`.
+
+Un message invalide est rejeté sans arrêter le service, vérifié avec
+`docker compose run --rm tools incident sensor-001 invalid` : aucune ligne insérée, le log
+indique le champ fautif, et `/health` répond toujours.

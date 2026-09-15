@@ -18,7 +18,7 @@ Toutes les dates sont en `timestamptz`, stockées en UTC, comme dans le contrat 
 | `alert_rules` | Les seuils qui déclenchent une alerte |
 | `alerts` | Les alertes ouvertes et fermées |
 
-## Les trois points qui portent le projet
+## Trois règles garanties par la base
 
 ### La déduplication
 
@@ -27,9 +27,13 @@ Toutes les dates sont en `timestamptz`, stockées en UTC, comme dans le contrat 
 L'insertion s'écrit `INSERT ... ON CONFLICT (device_id, message_id) DO NOTHING`, et on lit
 le nombre de lignes affectées pour savoir si c'était un doublon.
 
-C'est la base qui garantit l'unicité, pas notre code. Un test écrit en JavaScript du genre
-"ce message existe-t-il déjà ?" suivi d'une insertion serait une course si deux
-consommateurs tournaient un jour en parallèle.
+L'unicité est garantie par la contrainte, pas par un test applicatif, qui serait une course
+entre deux consommateurs. Voir `docs/decisions/03`.
+
+Contrainte de TimescaleDB à connaître : tout index unique d'une hypertable doit contenir la
+colonne de partitionnement. L'index porte donc sur `(device_id, message_id, recorded_at)`
+et non sur les deux premiers seuls. Sans effet ici, puisque `recorded_at` vient du message :
+un doublon rejoue exactement le même triplet.
 
 ### Les deux dates de chaque mesure
 
@@ -55,9 +59,20 @@ UPDATE device_state SET ... WHERE device_id = $1 AND last_recorded_at < $2
 Une mesure datée d'avant le dernier état est donc bien rangée dans l'historique, mais ne
 remplace pas ce qui est affiché.
 
-`device_state` porte aussi la disponibilité de l'objet, qui vient du topic `availability`
-et non des mesures. C'est ce qui permet de distinguer un objet déconnecté d'un objet
-connecté qui ne mesure plus.
+`device_state` porte aussi deux informations qui ne viennent pas des mesures :
+
+| Colonne | Source | À quoi ça sert |
+|---|---|---|
+| `availability` | topic `availability`, retained, alimenté aussi par le testament du broker | Distinguer un objet déconnecté d'un objet connecté qui ne mesure plus |
+| `ventilation` | topic `state`, retained | La seule source de l'état réel de la ventilation. Une commande acceptée ne suffit pas à le déduire |
+
+Ces deux topics sont retained, donc le broker les livre dès l'abonnement, avant la première
+mesure, à un moment où l'objet n'existe pas encore en base. Ils sont gardés en mémoire et
+appliqués dès que l'objet apparaît.
+
+Une valeur retained reçue à l'abonnement peut être ancienne : elle dit ce que l'objet avait
+annoncé la dernière fois, pas ce qui est vrai maintenant. C'est la fraîcheur des mesures qui
+tranche, pas elle.
 
 ## Le suivi des commandes
 
@@ -68,14 +83,28 @@ L'attente est en base et pas en mémoire. Si le backend redémarre pendant qu'un
 est en cours, une tâche au démarrage requalifie les commandes en attente dont la date
 d'expiration est passée. Un minuteur en mémoire disparaîtrait avec le process.
 
+## L'affectation d'un objet à une salle
+
+Le `room_id` présent dans les mesures est une indication de départ. Une fois l'objet
+enregistré, c'est notre table `devices` qui fait foi : une réaffectation faite depuis
+l'application n'est pas écrasée par le message suivant.
+
+C'est ce que prévoit le contrat du kit, et c'est ce que vérifie le scénario R10.
+
 ## La rétention
 
-`telemetry` est une hypertable TimescaleDB avec une politique de rétention qui supprime les
-mesures au delà de la durée choisie. C'est ce qui borne l'historique demandé par le sujet,
-sans tâche de ménage à écrire.
+`telemetry` est une hypertable TimescaleDB avec une politique de rétention à 7 jours. C'est
+ce qui borne l'historique demandé par le sujet, sans tâche de ménage à écrire.
 
-Point à trancher : l'index de déduplication doit couvrir une fenêtre au moins aussi longue
-que la rétention, sinon un `message_id` supprimé n'écarte plus son doublon.
+Deux limites connues, liées à la rétention :
+
+Un `message_id` supprimé par la rétention n'écarte plus son doublon. Sans effet pratique
+ici, le kit ne rejoue jamais un message vieux de plus de sept jours.
+
+Au redémarrage du simulateur, le `boot_id` change, donc tous les `message_id` sont
+renouvelés. Une mesure identique republiée après un redémarrage serait enregistrée comme
+nouvelle. C'est conforme au contrat : le kit considère qu'un redémarrage produit de
+nouvelles observations.
 
 ## Les migrations
 

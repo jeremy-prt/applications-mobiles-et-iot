@@ -20,13 +20,13 @@ flowchart LR
 | Runtime | Node.js LTS | 24.21.0 | Nous avons choisi Node parce que l'application mobile est déjà en JavaScript. En écrivant le backend dans le même langage, on décrit le format d'un message une seule fois au lieu de deux |
 | Langage | TypeScript | 7.0.2 | Nous avons choisi TypeScript parce que l'erreur la plus fréquente ici est de lire un champ qui n'existe pas dans un message. Avec des types, l'erreur apparaît à la compilation au lieu d'apparaître en démonstration |
 | API | Fastify | 5.12.4 | Nous avons choisi Fastify parce qu'il réutilise pour les routes HTTP les schémas Zod qu'on écrit déjà pour valider les messages MQTT. Un schéma, deux usages, au lieu de revalider à la main dans chaque route |
-| Client MQTT | mqtt | 5.15.2 | Nous avons choisi MQTT.js parce que c'est la bibliothèque de référence en Node, et parce qu'elle se reconnecte toute seule quand le broker redémarre |
+| Client MQTT | mqtt | 5.15.2 | Nous avons choisi MQTT.js parce qu'il se reconnecte seul quand le broker redémarre, ce que le scénario R07 exige, et parce qu'il gère les sessions persistantes |
 | Base | PostgreSQL | 18.6 | Nous avons choisi une base relationnelle parce que nos données sont pleines de liens à garantir, et parce que la déduplication doit être une contrainte d'unicité vérifiée par la base et non un test écrit dans notre code |
 | Séries temporelles | TimescaleDB | 2.30.0 | Nous avons choisi TimescaleDB parce que c'est une extension de PostgreSQL et pas une deuxième base. Sa politique de rétention supprime automatiquement les vieilles mesures, ce qui règle l'historique borné demandé par le sujet |
 | Accès aux données | pg et Kysely | 8.23.0 et 0.29.5 | Nous avons choisi d'écrire du SQL plutôt qu'un ORM parce que nos deux requêtes clés, l'insertion qui ignore les doublons et la mise à jour conditionnelle sur la date, sont justement celles que les ORM rendent pénibles |
 | Migrations | node-pg-migrate | 9.0.0 | Nous avons choisi des migrations versionnées parce qu'en production on ne rejoue pas un fichier de schéma à la main et on ne laisse pas un ORM modifier le schéma tout seul |
 | Validation | Zod | 4.6.5 | Nous avons choisi Zod parce que quand un message est mal formé, il nous dit quel champ pose problème et pourquoi. On écrit cette raison dans les logs pour justifier le rejet |
-| Authentification | @fastify/jwt et argon2 | 10.2.2 et 0.45.1 | Nous avons choisi le JWT parce que le backend n'a pas besoin de garder la liste des gens connectés, et argon2 parce que c'est la recommandation actuelle pour hacher un mot de passe |
+| Authentification | @fastify/jwt et argon2 | 10.2.2 et 0.45.1 | Nous avons choisi le JWT parce que le backend n'a pas besoin de garder la liste des gens connectés, et argon2id parce que c'est ce que recommande l'OWASP, là où bcrypt tronque au delà de 72 octets |
 | Traces | Pino | 10.3.1 | Nous avons choisi Pino parce qu'il écrit les logs en JSON, donc on retrouve tout le parcours d'une commande en filtrant sur son numéro. Il est déjà intégré à Fastify |
 | Mobile | Expo SDK 57 (React Native 0.86) | expo 57.0.22 | Nous avons choisi Expo parce qu'avec React Native seul, il faut recompiler l'application entière à chaque fois qu'on ajoute une bibliothèque. Avec Expo tout est déjà inclus : on enregistre le fichier et le téléphone se met à jour |
 
@@ -66,7 +66,8 @@ backend/src/
 | CQRS | Écarté | Nous l'avons écarté parce qu'il sépare le modèle d'écriture du modèle de lecture, alors que nos deux chemins travaillent sur les mêmes tables. Notre table de dernier état joue déjà ce rôle en une requête SQL |
 | Microservices | Écartés | Nous les avons écartés parce que séparer l'ingestion de l'API obligerait à partager l'état entre deux services, alors que c'est justement la cohérence de cet état, le doublon et l'ordre des mesures, qui est notée |
 
-Le détail de chaque point est dans `docs/decisions/04-architecture-du-backend.md`.
+Le détail de chaque point, et le raisonnement complet sur les patterns écartés, est dans
+`docs/decisions/04-architecture-du-backend.md`.
 
 ## Flux des données
 
@@ -79,7 +80,7 @@ Ces valeurs sont déclarées avant les tests de recette, comme le demande le suj
 | Paramètre | Valeur | Pourquoi cette valeur |
 |---|---|---|
 | Seuil de fraîcheur d'une mesure | 30 secondes | Les capteurs publient toutes les 2 secondes. 30 secondes, c'est 15 mesures manquées : on ne peut plus parler d'un aléa réseau. C'est aussi assez long pour absorber une reconnexion ou un redémarrage du broker, et assez court pour le montrer en démonstration |
-| Expiration d'une commande | 10 secondes | Passé ce délai, l'objet refuse d'exécuter la commande. C'est le champ `expires_at` du contrat MQTT |
+| Expiration d'une commande | 10 secondes | C'est nous qui la choisissons : le contrat impose seulement une date future, et l'outil du kit utilise 15 secondes. Passé ce délai, l'objet refuse d'exécuter |
 | Attente maximale d'une commande | 15 secondes | On attend plus longtemps que l'expiration. Si on abandonnait avant, l'objet pourrait encore exécuter la commande après notre abandon, et on afficherait un échec faux |
 | Alerte CO2, déclenchement | 1000 ppm | Au-dessus de la valeur repère de 800 ppm du HCSP, qui correspond à un renouvellement d'air satisfaisant |
 | Alerte CO2, retour à la normale | 800 ppm | On ne referme l'alerte qu'au retour à la valeur repère. L'écart de 200 ppm avec le seuil de déclenchement empêche l'alerte de clignoter autour d'une valeur unique |
@@ -99,10 +100,9 @@ toute nouvelle intention utilise un nouveau `command_id`.
 au-dessus de 1000 ppm la mettent à jour au lieu d'en créer une nouvelle. C'est ce qui évite
 la répétition à chaque message.
 
-Deux seuils différents pour ouvrir et pour fermer, c'est ce qu'on appelle une hystérésis,
-le principe classique des systèmes d'alarme. L'écart de 200 ppm vaut environ 17 mesures de
-montée sans ventilation et 5 mesures de descente avec, donc bien plus que le bruit du
-modèle : une valeur qui oscille ne peut pas traverser les deux seuils.
+Deux seuils différents pour ouvrir et pour fermer, c'est une hystérésis. L'écart de 200 ppm
+vaut environ 17 mesures de montée sans ventilation et 5 mesures de descente avec, donc bien
+plus que le bruit du modèle : une valeur qui oscille ne peut pas traverser les deux seuils.
 
 Une mesure invalide est rejetée à la validation et ne doit ni ouvrir ni fermer une alerte.
 
@@ -112,7 +112,6 @@ Le HCSP retient 800 ppm comme valeur repère d'un renouvellement d'air satisfais
 1500 ppm comme valeur d'action rapide, dans son avis du 21 janvier 2022 sur la mesure du
 CO2 dans les établissements recevant du public.
 
-À savoir pour l'oral : le seuil de 1000 ppm souvent cité n'est pas une norme. L'ASHRAE
-rappelle que le CO2 à ces niveaux est un indicateur de renouvellement d'air, pas un
-polluant toxique. Nos 1000 ppm sont donc un seuil produit assumé, pas une obligation
-réglementaire.
+Le seuil de 1000 ppm n'est pas une norme : c'est notre choix, entre la valeur repère du
+HCSP à 800 et sa valeur d'action rapide à 1500. À ces niveaux le CO2 mesure le
+renouvellement de l'air, il n'est pas toxique.

@@ -46,8 +46,8 @@ tests possibles.
 l'affichage. S'il était écrit dans le handler MQTT et redéfini dans une route, les deux
 finiraient par diverger.
 
-Enfin, les deux entrées sont symétriques. Quand on saura décrire le chemin d'une mesure, on
-saura décrire le chemin d'une commande, parce que les deux traversent les mêmes couches.
+Une commande traverse les mêmes couches qu'une mesure, en sens inverse : `http/`, puis
+`domain/`, puis `mqtt/`.
 
 ## Pourquoi pas l'architecture hexagonale
 
@@ -87,3 +87,22 @@ appeler la base directement depuis une route.
 
 Une règle métier qui aurait besoin de connaître Fastify ou MQTT.js est le signe qu'elle est
 mal placée. C'est le contrôle qu'on applique à chaque ajout.
+
+## Aide de l'IA
+
+L'IA n'avait pas posé la question de l'architecture. Elle a été ajoutée sur demande, avec
+la consigne d'examiner l'hexagonal et CQRS plutôt que de les ignorer.
+
+Sa première réponse décrivait le découpage comme « une version légère de l'hexagonal ».
+Formule rejetée : soit on applique des ports et des adaptateurs, soit on n'en applique pas.
+Ce qu'on fait est un découpage en couches avec une règle de dépendance, et ça se dit
+comme ça.
+
+## Vérification
+
+À faire en J2, quand les règles de doublon et de fraîcheur seront couvertes par des tests :
+vérifier qu'aucun fichier de `domain/` n'importe `mqtt`, `fastify` ni `kysely`, et que les
+tests de ces règles tournent sans broker ni serveur HTTP.
+
+Aujourd'hui, `src/domain/fraicheur.ts` ne contient que des fonctions pures, sans aucun
+import.

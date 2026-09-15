@@ -84,3 +84,34 @@ calculer ni la fraîcheur d'une mesure ni détecter qu'elle est arrivée dans le
 
 Le schéma évolue par migrations versionnées, avec `node-pg-migrate`. On ne rejoue pas un
 fichier `schema.sql` à la main, et on n'utilise pas la synchronisation automatique d'un ORM.
+
+## Aide de l'IA
+
+L'IA a d'abord proposé SQLite, en avançant qu'il n'y avait aucun service à administrer.
+Rejeté : personne ne déploie SQLite sur ce type de système, et « c'est plus simple à
+installer » n'est pas un critère de choix.
+
+Dans la même réponse, deux affirmations fausses ont été corrigées après vérification :
+InfluxDB sait faire des jointures depuis sa version 3, et MongoDB a bien des index uniques.
+Les arguments réels sont ailleurs : ni l'un ni l'autre n'a de clé étrangère.
+
+Elle a aussi avancé que le pilote synchrone empêchait une course entre la vérification et
+l'insertion d'un doublon. Supprimé : avec `ON CONFLICT DO NOTHING` il n'y a pas de
+vérification préalable, l'atomicité vient de la base et pas du pilote.
+
+## Vérification
+
+L'index unique et la déduplication ont été testés sur le système en marche :
+
+```sh
+docker compose run --rm tools incident sensor-001 duplicate
+docker compose exec postgres psql -U campus -d campus -tAc \
+  "select count(*) from (select device_id, message_id from telemetry
+   group by device_id, message_id having count(*)>1) x"
+```
+
+Résultat : 0 doublon en base.
+
+La non-régression de l'état courant a été testée avec l'incident `delay` : la mesure datée
+d'une minute avant est bien dans l'historique, et `device_state.recorded_at` a continué
+d'avancer au lieu de reculer.
