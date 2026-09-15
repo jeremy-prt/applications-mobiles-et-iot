@@ -32,6 +32,21 @@ flowchart LR
 
 Les alternatives écartées et ce que chaque choix nous coûte sont dans `docs/decisions/`.
 
+### Dans l'application mobile
+
+| Besoin | Techno | Version | Pourquoi ce choix |
+|---|---|---|---|
+| Navigation | Expo Router | 57.0.21 | Nous avons choisi Expo Router parce que c'est ce que génère Expo par défaut, et parce que les routes sont des fichiers : le chemin d'un écran se lit dans l'arborescence |
+| Réseau et cache | TanStack Query | 5.102.8 | Nous avons choisi TanStack Query parce qu'il fournit d'origine le chargement, l'erreur, et la date de dernière mise à jour, qui sont exactement les états que le sujet demande d'afficher |
+| Cache sur disque | persist-client et async-storage-persister | 5.102.8 | Nous les avons choisis parce que ce sont les modules officiels qui écrivent le cache sur le disque et le rechargent au démarrage. C'est ce qui fait tenir le mode hors ligne après fermeture de l'application |
+| Détection du réseau | NetInfo | 12.0.1 | Nous avons choisi NetInfo parce que c'est la source que TanStack Query attend pour savoir si on est en ligne, et parce qu'il distingue être connecté d'avoir vraiment accès à internet |
+| Stockage local | AsyncStorage | 2.2.0 | Nous avons choisi AsyncStorage parce que c'est le seul qui tourne dans Expo Go et que le module de persistance officiel est écrit pour lui |
+| Jeton | expo-secure-store | 57.0.4 | Nous avons choisi expo-secure-store parce qu'il range le jeton dans le Trousseau iOS, donc chiffré, là où un stockage normal l'écrirait en clair |
+| État global | aucun | - | Nous n'avons ajouté aucune bibliothèque d'état parce que les données viennent du serveur et sont déjà gérées par TanStack Query. Le jeton tient dans un contexte React |
+| Interface | React Native Paper | 5.15.3 | Nous avons choisi Paper parce que ses composants sont déjà étiquetés pour les lecteurs d'écran et respectent les tailles de zone tactile, alors que le sujet note l'accessibilité |
+| Scan de QR | expo-camera | 57.0.5 | Nous avons choisi expo-camera parce qu'il fait le scan et donne l'état de la permission, ce qui permet d'afficher proprement un refus caméra |
+| Validation | Zod | 4.6.5 | Nous validons aussi les réponses de l'API parce que les types TypeScript disparaissent à la compilation, et parce que le cache peut contenir des données écrites par une version précédente de l'application |
+
 ## Organisation du code
 
 ```
