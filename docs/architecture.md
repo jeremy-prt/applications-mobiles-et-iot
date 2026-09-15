@@ -59,8 +59,45 @@ Le détail de chaque point est dans `docs/decisions/04-architecture-du-backend.m
 
 ## Règles à documenter
 
-| Paramètre | Valeur | Pourquoi |
+Ces valeurs sont déclarées avant les tests de recette, comme le demande le sujet.
+
+| Paramètre | Valeur | Pourquoi cette valeur |
 |---|---|---|
-| Seuil de fraîcheur d'une mesure | à définir | |
-| Délai maximum d'attente d'une commande | à définir | |
-| Règle d'alerte CO2 | à définir | |
+| Seuil de fraîcheur d'une mesure | 30 secondes | Les capteurs publient toutes les 2 secondes. 30 secondes, c'est 15 mesures manquées : on ne peut plus parler d'un aléa réseau. C'est aussi assez long pour absorber une reconnexion ou un redémarrage du broker, et assez court pour le montrer en démonstration |
+| Expiration d'une commande | 10 secondes | Passé ce délai, l'objet refuse d'exécuter la commande. C'est le champ `expires_at` du contrat MQTT |
+| Attente maximale d'une commande | 15 secondes | On attend plus longtemps que l'expiration. Si on abandonnait avant, l'objet pourrait encore exécuter la commande après notre abandon, et on afficherait un échec faux |
+| Alerte CO2, déclenchement | 1000 ppm | Au-dessus de la valeur repère de 800 ppm du HCSP, qui correspond à un renouvellement d'air satisfaisant |
+| Alerte CO2, retour à la normale | 800 ppm | On ne referme l'alerte qu'au retour à la valeur repère. L'écart de 200 ppm avec le seuil de déclenchement empêche l'alerte de clignoter autour d'une valeur unique |
+
+### Ce que ces valeurs impliquent
+
+**Fraîcheur.** L'âge est calculé par le backend et exposé dans l'API. Le mobile ne le
+recalcule pas avec sa propre horloge, qui peut différer. Une mesure ancienne reste affichée
+avec sa date, on ne la remplace pas par un tiret.
+
+**Commandes.** Au bout de 15 secondes sans réponse, le statut est `unknown`, pas `failed` :
+on ne sait pas si l'action a eu lieu. Une réponse tardive est quand même traitée, corrélée
+par son `command_id`. Une commande abandonnée n'est jamais rejouée automatiquement, et
+toute nouvelle intention utilise un nouveau `command_id`.
+
+**Alertes.** Une seule alerte ouverte par salle. Tant qu'elle est ouverte, les mesures
+au-dessus de 1000 ppm la mettent à jour au lieu d'en créer une nouvelle. C'est ce qui évite
+la répétition à chaque message.
+
+Deux seuils différents pour ouvrir et pour fermer, c'est ce qu'on appelle une hystérésis,
+le principe classique des systèmes d'alarme. L'écart de 200 ppm vaut environ 17 mesures de
+montée sans ventilation et 5 mesures de descente avec, donc bien plus que le bruit du
+modèle : une valeur qui oscille ne peut pas traverser les deux seuils.
+
+Une mesure invalide est rejetée à la validation et ne doit ni ouvrir ni fermer une alerte.
+
+### Sources pour les seuils de CO2
+
+Le HCSP retient 800 ppm comme valeur repère d'un renouvellement d'air satisfaisant et
+1500 ppm comme valeur d'action rapide, dans son avis du 21 janvier 2022 sur la mesure du
+CO2 dans les établissements recevant du public.
+
+À savoir pour l'oral : le seuil de 1000 ppm souvent cité n'est pas une norme. L'ASHRAE
+rappelle que le CO2 à ces niveaux est un indicateur de renouvellement d'air, pas un
+polluant toxique. Nos 1000 ppm sont donc un seuil produit assumé, pas une obligation
+réglementaire.
