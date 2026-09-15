@@ -1,5 +1,8 @@
 # Sécurité
 
+Ce document décrit la cible. Au 15 septembre 2026, l'authentification et les droits ne sont
+pas encore implémentés : l'API est ouverte.
+
 ## Identités
 
 Deux familles d'identités, qu'il ne faut pas confondre.
@@ -58,7 +61,7 @@ ne peut pas publier de fausses mesures ni déclencher d'incidents.
 
 | Donnée | Ce qu'on garde | Combien de temps |
 |---|---|---|
-| Mesures | Température, CO2, les deux dates, l'identifiant du message | Durée de la politique de rétention TimescaleDB |
+| Mesures | Température, CO2, les deux dates, l'identifiant du message | 7 jours, supprimées automatiquement par TimescaleDB |
 | Dernier état | Une ligne par objet, écrasée | Tant que l'objet existe |
 | Commandes | Qui a demandé quoi, quand, et le résultat | Conservées, elles servent de trace |
 | Utilisateurs | Identifiant de connexion et mot de passe haché | Tant que le compte existe |

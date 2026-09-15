@@ -1,7 +1,5 @@
 # Architecture
 
-> À compléter en J1, une fois la stack choisie.
-
 ## Vue d'ensemble
 
 ```mermaid
@@ -71,7 +69,16 @@ Le détail de chaque point, et le raisonnement complet sur les patterns écarté
 
 ## Flux des données
 
-À compléter.
+**Une mesure.** Le capteur publie sur `campus/v1/devices/{id}/telemetry`. Le backend, abonné
+en permanence, valide le message, l'écarte si c'est un doublon, l'écrit dans l'historique, et
+met à jour le dernier état seulement si la mesure est plus récente que celui-ci. Le mobile
+lit ce dernier état via `GET /rooms`.
+
+**Une commande.** Le mobile appelle `POST /devices/:id/commands`. Le backend enregistre la
+commande en attente, publie sur `campus/v1/devices/{id}/commands`, puis attend le résultat
+sur `.../results`. Le mobile suit l'avancement avec `GET /commands/:id`.
+
+L'état réel de la ventilation ne vient pas de la commande mais du topic `state`.
 
 ## Règles à documenter
 
@@ -84,6 +91,9 @@ Ces valeurs sont déclarées avant les tests de recette, comme le demande le suj
 | Attente maximale d'une commande | 15 secondes | On attend plus longtemps que l'expiration. Si on abandonnait avant, l'objet pourrait encore exécuter la commande après notre abandon, et on afficherait un échec faux |
 | Alerte CO2, déclenchement | 1000 ppm | Au-dessus de la valeur repère de 800 ppm du HCSP, qui correspond à un renouvellement d'air satisfaisant |
 | Alerte CO2, retour à la normale | 800 ppm | On ne referme l'alerte qu'au retour à la valeur repère. L'écart de 200 ppm avec le seuil de déclenchement empêche l'alerte de clignoter autour d'une valeur unique |
+| Rétention de l'historique | 7 jours | Assez pour montrer une évolution sur plusieurs jours pendant la semaine du projet, assez court pour que la suppression automatique soit observable |
+| Taille maximale d'une page d'historique | 500 points | Borne les lectures, pour qu'une requête ne puisse pas bloquer l'ingestion |
+| Rafraîchissement du mobile | 15 secondes | Bien en dessous du seuil de fraîcheur, donc l'affichage ne passe jamais en ancien à cause de notre propre rythme |
 
 ### Ce que ces valeurs impliquent
 

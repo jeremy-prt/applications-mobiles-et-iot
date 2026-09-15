@@ -22,6 +22,7 @@ Toutes les routes sauf la connexion attendent un en-tête
 
 | Méthode | Chemin | Rôle | Droit requis |
 |---|---|---|---|
+| GET | `/health` | État du service et de la base | aucun |
 | POST | `/auth/login` | Obtenir un jeton | aucun |
 | GET | `/rooms` | Les salles avec la dernière mesure de chacune | consultation |
 | GET | `/rooms/:id` | Une salle et ses objets | consultation |
@@ -76,8 +77,8 @@ lieu, ce qui n'est jamais le cas en l'absence de réponse.
 Une réponse arrivant après les 15 secondes est quand même traitée et corrélée par son
 `command_id`. L'état réel de la ventilation reste celui du topic `state`.
 
-C'est voulu. Une commande acceptée n'est pas une action réalisée, et l'application ne doit
-jamais afficher "activé" tant que l'objet n'a pas confirmé.
+Ce découpage en deux appels est voulu : l'application ne doit jamais afficher « activé »
+tant que l'objet n'a pas confirmé.
 
 ## Le contrôle des droits
 
@@ -85,7 +86,10 @@ Le droit est vérifié dans le backend, dans un hook Fastify qui s'exécute avan
 Masquer un bouton dans l'application ne constitue pas un contrôle d'accès : un appel direct
 à l'API avec un compte sans droit doit être refusé.
 
-## Ce qui reste à écrire
+## État au 15 septembre 2026
 
-Le détail de chaque route, corps de requête et de réponse, et la liste complète des codes
-d'erreur. À compléter au fur et à mesure du développement.
+Seules `/health` et `/rooms` sont implémentées, et sans authentification. Le reste de ce
+document décrit le contrat visé, pas ce qui existe.
+
+Restent à écrire : le détail de chaque route, les corps de requête et de réponse, et la
+liste complète des codes d'erreur.

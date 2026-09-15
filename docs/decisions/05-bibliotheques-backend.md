@@ -2,10 +2,12 @@
 
 ## Accès à la base : pg et Kysely, pas un ORM
 
-Les deux requêtes que le sujet note explicitement, la déduplication et la non-régression du dernier état, sont
-`INSERT ... ON CONFLICT (device_id, message_id) DO NOTHING` pour la déduplication, et
-`UPDATE device_state ... WHERE recorded_at < :nouvelle` pour ne pas régresser sur une
-mesure en retard.
+Le sujet note deux comportements précis, et chacun tient dans une requête :
+
+| Comportement noté | Requête |
+|---|---|
+| Un doublon ne crée pas de seconde ligne | `INSERT ... ON CONFLICT DO NOTHING` |
+| Une mesure en retard ne fait pas reculer l'état courant | `UPDATE device_state ... WHERE recorded_at < :nouvelle` |
 
 Ce sont précisément les requêtes que les ORM rendent pénibles, parce qu'elles sortent du
 schéma habituel "je charge un objet, je le modifie, je le sauve". On écrit donc du SQL,
