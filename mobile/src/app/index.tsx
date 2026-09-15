@@ -1,5 +1,5 @@
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Button, Card, Chip, Text } from 'react-native-paper'
+import { ActivityIndicator, Button, Card, Chip, Text, useTheme } from 'react-native-paper'
 import { useSalles } from '../api/salles'
 import { ErreurApi } from '../api/client'
 import type { Objet, Salle } from '../api/schemas'
@@ -63,9 +63,13 @@ function CarteObjet({ objet }: { objet: Objet }) {
 }
 
 function CarteSalle({ salle }: { salle: Salle }) {
+  const theme = useTheme()
   return (
     <View style={styles.salle}>
-      <Text variant="titleLarge" style={styles.titreSalle}>
+      <Text
+        variant="titleLarge"
+        style={[styles.titreSalle, { color: theme.colors.onBackground }]}
+      >
         {salle.label}
       </Text>
       {salle.devices.map((objet) => (
@@ -76,12 +80,14 @@ function CarteSalle({ salle }: { salle: Salle }) {
 }
 
 export default function EcranSalles() {
+  const theme = useTheme()
   const { data, isPending, isError, error, refetch, isRefetching } = useSalles()
+  const fond = { backgroundColor: theme.colors.background }
 
   // 1. Chargement : premier appel, rien à afficher encore.
   if (isPending) {
     return (
-      <View style={styles.centre}>
+      <View style={[styles.centre, fond]}>
         <ActivityIndicator size="large" />
         <Text variant="bodyMedium" style={styles.texteCentre}>
           Chargement des salles
@@ -95,7 +101,7 @@ export default function EcranSalles() {
     const message =
       error instanceof ErreurApi ? error.message : 'Une erreur inattendue est survenue'
     return (
-      <View style={styles.centre}>
+      <View style={[styles.centre, fond]}>
         <Text variant="titleMedium">{message}</Text>
         <Text variant="bodySmall" style={styles.texteCentre}>
           Vérifiez que le backend tourne et que le téléphone est sur le même réseau.
@@ -110,7 +116,7 @@ export default function EcranSalles() {
   // 3. Vide : l'appel a réussi mais aucune salle n'est connue.
   if (data.rooms.length === 0) {
     return (
-      <View style={styles.centre}>
+      <View style={[styles.centre, fond]}>
         <Text variant="titleMedium">Aucune salle</Text>
         <Text variant="bodySmall" style={styles.texteCentre}>
           Le backend n'a encore reçu aucune mesure.
@@ -122,6 +128,7 @@ export default function EcranSalles() {
   // 4. Données.
   return (
     <ScrollView
+      style={fond}
       contentContainerStyle={styles.liste}
       refreshControl={
         <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
