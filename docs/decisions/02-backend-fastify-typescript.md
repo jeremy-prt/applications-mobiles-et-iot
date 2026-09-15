@@ -37,8 +37,15 @@ schéma, deux usages. Avec Express, il faudrait revalider à la main dans chaque
 Pino est intégré à Fastify. Le sujet demande des traces qui permettent de suivre une mesure
 et une commande, donc on aurait branché Pino de toute façon.
 
-Ce n'est pas un choix de performance. À 1,5 message par seconde et quelques appels HTTP par
-minute, la différence de vitesse entre Express et Fastify ne serait pas mesurable.
+Fastify est effectivement plus rapide qu'Express sur le nombre de requêtes servies par
+seconde. Ce n'est pas notre argument, parce que ça ne joue pas ici : le mobile fait quelques
+appels par minute sur neuf routes.
+
+Il faut aussi éviter une confusion. La vitesse à laquelle les mesures arrivent ne dépend pas
+du tout du framework HTTP : les messages MQTT sont reçus par le client MQTT et écrits en
+base, sans jamais passer par Fastify. Le framework n'est sur le chemin que des appels du
+mobile. Ce qui détermine la vitesse d'ingestion, c'est le broker, le QoS, et le temps
+d'écriture en base.
 
 NestJS apporte une structure toute faite, mais impose d'apprendre ses modules, son
 injection de dépendances et ses décorateurs. Sur 4 jours à deux, c'est du temps pris sur les

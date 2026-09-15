@@ -1,55 +1,89 @@
-# Organisation du code du backend
+# Architecture du backend : en couches, avec un noyau métier isolé
 
 ## Contexte
 
-Le backend a deux entrées qui doivent appliquer les mêmes règles. MQTT écrit, HTTP lit, et
-HTTP écrit aussi quand on envoie une commande.
+Le backend a deux façons d'être sollicité, et elles n'ont rien à voir.
 
-Si on met la règle de déduplication dans le code qui reçoit les messages MQTT, on ne peut
-plus la tester sans lancer un broker. Pareil pour la règle de fraîcheur, qui sert à
-l'ingestion et à l'affichage.
+D'un côté il reçoit des événements qu'il n'a pas demandés : les messages MQTT arrivent tout
+seuls, en continu, et il faut les traiter au fil de l'eau. De l'autre il répond à des
+requêtes du mobile, une question suivie d'une réponse.
+
+Les deux doivent appliquer les mêmes règles. Le chemin MQTT décide si une mesure est un
+doublon et si elle doit remplacer l'état courant. Le chemin HTTP décide si une mesure
+affichée est encore fraîche, avec le même seuil. Envoyer une commande part du HTTP et se
+termine par un message MQTT.
 
 ## Options envisagées
 
-Architecture hexagonale, CQRS, ou un découpage en couches simple.
+Architecture en couches avec noyau métier isolé, architecture hexagonale, CQRS,
+microservices.
 
 ## Choix retenu
 
-Un découpage en couches, sans framework d'architecture.
+Une architecture en couches, avec les règles métier isolées dans leur propre couche.
 
 ```
 backend/src/
-  schemas/    schémas Zod, partagés entre MQTT et HTTP
+  schemas/    schémas Zod : le format des messages et des requêtes
   domain/     les règles : doublon, ordre des mesures, fraîcheur, commandes, alertes
-  db/         les requêtes SQL et les migrations
+  db/         requêtes SQL et migrations
   mqtt/       connexion au broker, abonnements, publication des commandes
-  http/       les routes Fastify
+  http/       routes Fastify
 ```
 
-## Pourquoi pas l'hexagonal ni CQRS
+La règle de dépendance : `mqtt/` et `http/` appellent `domain/`, jamais l'inverse.
+`domain/` ne connaît ni le broker ni Fastify.
 
-L'architecture hexagonale sert à pouvoir remplacer une dépendance externe sans toucher au
-métier. Nous avons un broker imposé par le sujet et une base choisie pour 4 jours. On
-écrirait des interfaces pour des remplacements qui n'arriveront pas.
+## Pourquoi
 
-CQRS sépare le modèle d'écriture du modèle de lecture quand les deux divergent. Notre
-système a bien deux chemins, MQTT qui écrit et HTTP qui lit, mais ils lisent et écrivent
-les mêmes tables. Notre table de dernier état joue déjà le rôle d'un modèle de lecture, et
-elle tient en une ligne de SQL.
+Les règles du sujet sont dans `domain/`, donc testables sans lancer un broker. Un test qui
+vérifie qu'un message rejoué ne crée pas de doublon appelle une fonction et lui passe deux
+messages. Il ne publie rien sur MQTT et n'ouvre pas de serveur HTTP. Le sujet classe le test
+automatisé au-dessus de la capture d'écran comme preuve : ce découpage est ce qui rend ces
+tests possibles.
 
-Les deux ajouteraient des fichiers et des indirections sans supprimer un problème réel.
+Ça évite aussi de dupliquer une règle. Le seuil de fraîcheur est utilisé à l'ingestion et à
+l'affichage. S'il était écrit dans le handler MQTT et redéfini dans une route, les deux
+finiraient par diverger.
 
-## Pourquoi ce découpage quand même
+Enfin, les deux entrées sont symétriques. Quand on saura décrire le chemin d'une mesure, on
+saura décrire le chemin d'une commande, parce que les deux traversent les mêmes couches.
 
-Les règles du sujet sont dans `domain/`, donc testables sans broker et sans serveur HTTP.
-Un test qui vérifie qu'un doublon est écarté appelle une fonction, il ne publie pas un
-message MQTT.
+## Pourquoi pas l'architecture hexagonale
 
-Les schémas Zod sont dans `schemas/` parce qu'ils servent aux deux entrées : valider un
-message MQTT à l'ingestion, et valider le corps d'une requête HTTP dans Fastify.
+Elle poursuit le même but que nous, isoler le métier, mais elle y ajoute des interfaces
+qu'on appelle des ports, et des implémentations qu'on appelle des adaptateurs, pour pouvoir
+changer de base ou de broker sans toucher au métier.
+
+Nous avons un broker imposé par le sujet et une base choisie pour quatre jours. On écrirait
+des interfaces pour des remplacements qui n'arriveront pas. Le bénéfice réel de
+l'hexagonal, l'isolement du métier, on l'obtient déjà avec notre règle de dépendance.
+
+## Pourquoi pas CQRS
+
+CQRS sépare le modèle d'écriture du modèle de lecture, avec deux représentations
+différentes des mêmes données, quand les besoins de lecture divergent trop de ceux
+d'écriture.
+
+Notre système a bien deux chemins, MQTT écrit et HTTP lit, ce qui y ressemble de loin. Mais
+les deux travaillent sur les mêmes tables. Notre table de dernier état joue déjà le rôle
+d'un modèle de lecture optimisé, et elle tient en une requête SQL. Construire deux modèles
+et le mécanisme qui les synchronise créerait un problème de cohérence qu'on n'a pas
+aujourd'hui.
+
+## Pourquoi pas des microservices
+
+Découper l'ingestion et l'API en deux services obligerait à partager l'état entre eux et à
+gérer deux déploiements. Or c'est justement la cohérence de cet état, le doublon et l'ordre
+des mesures, qui est notée. On ajouterait un problème distribué à un projet qui n'en a pas
+besoin, à deux personnes sur quatre jours.
 
 ## Ce que ça coûte
 
-Un peu plus de fichiers qu'en écrivant tout dans le handler MQTT. En contrepartie, les
-règles notées du sujet sont isolées et prouvables par des tests, ce que le sujet classe
-au-dessus des captures d'écran.
+Plus de fichiers qu'en écrivant tout dans le handler MQTT, et la discipline de ne jamais
+appeler la base directement depuis une route.
+
+## Conséquence
+
+Une règle métier qui aurait besoin de connaître Fastify ou MQTT.js est le signe qu'elle est
+mal placée. C'est le contrôle qu'on applique à chaque ajout.

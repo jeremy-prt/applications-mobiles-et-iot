@@ -43,8 +43,15 @@ backend/src/
   http/       routes Fastify
 ```
 
-Les règles du sujet sont dans `domain/`, donc testables sans broker ni serveur HTTP. Ni
-architecture hexagonale ni CQRS : le détail est dans `docs/decisions/04`.
+Architecture en couches, avec les règles métier isolées dans `domain/`. `mqtt/` et `http/`
+appellent `domain/`, jamais l'inverse, et `domain/` ne connaît ni le broker ni Fastify.
+
+Concrètement, un test qui vérifie qu'un message rejoué ne crée pas de doublon appelle une
+fonction et lui passe deux messages, sans lancer de broker. Le sujet classe le test
+automatisé au-dessus de la capture d'écran comme preuve.
+
+L'architecture hexagonale, CQRS et les microservices ont été envisagés et écartés. Le
+détail est dans `docs/decisions/04-architecture-du-backend.md`.
 
 ## Flux des données
 
