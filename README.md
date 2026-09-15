@@ -50,13 +50,26 @@ Pour arrêter : `docker compose down`. Pour repartir d'une base vide :
 | Broker MQTT | 127.0.0.1:1883 | Compte `backend`, mot de passe dans `.env` |
 | PostgreSQL | 127.0.0.1:5432 | Accessible depuis cette machine seulement |
 
-Le téléphone ne peut pas utiliser `localhost`, qui désigne le téléphone lui-même.
-Il faut l'adresse IP de la machine sur le réseau local, par exemple
-`http://192.168.1.20:3000`.
-
 ## Lancer l'application mobile
 
-À compléter.
+Prérequis : Expo Go installé sur le téléphone, et un compte Expo gratuit. Le téléphone et
+la machine doivent être sur le même réseau.
+
+```sh
+cd mobile
+npm install
+npx expo start
+```
+
+Scanner le code affiché dans le terminal avec Expo Go.
+
+L'application trouve le backend toute seule : elle prend l'adresse de la machine qui fait
+tourner le serveur Expo, à laquelle le téléphone est déjà connecté. Rien à configurer, même
+en changeant de réseau.
+
+Si le backend tourne sur une autre machine ou sur un autre port, copier `mobile/.env.example`
+en `mobile/.env` et renseigner `EXPO_PUBLIC_API_URL`. `localhost` ne fonctionnerait pas : sur
+le téléphone, il désigne le téléphone lui-même.
 
 ## Simuler des pannes
 
