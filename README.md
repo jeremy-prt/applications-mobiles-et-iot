@@ -28,7 +28,12 @@ docker compose up -d --build --wait
 
 Vérifier avec `curl http://localhost:3000/health` puis `curl http://localhost:3000/rooms`.
 
-Arrêter : `docker compose down`. Repartir d'une base vide : `docker compose down -v`.
+Le service `migrate` s'affiche en « Exited » après le lancement. Ce n'est pas une erreur :
+il applique les migrations puis s'arrête, avec le code 0. Si le backend tourne, c'est que
+les migrations ont réussi, il refuse de démarrer sinon.
+
+Arrêter : `docker compose down`, ou `docker compose stop` pour conserver les conteneurs.
+Repartir d'une base vide : `docker compose down -v`.
 
 | Service | Adresse | Remarque |
 |---|---|---|
