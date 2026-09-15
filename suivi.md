@@ -47,11 +47,15 @@ Résultats des manips notés dans `resultats.md`.
 
 ## Étape 4 — Créer notre repo d'équipe
 
-- [ ] Créer le monorepo GitHub (1 seul pour nous deux)
-- [ ] Ajouter l'autre membre en collaborateur
-- [ ] Créer la structure : `backend/ mobile/ infra/ docs/ README.md`
-- [ ] Y remettre le kit (dans `infra/`)
-- [ ] Premier commit + push
+- [x] Créer le monorepo GitHub (1 seul pour nous deux)
+- [x] Créer la structure : `backend/ mobile/ infra/ docs/ README.md`
+- [x] Y remettre le kit (dans `infra/kit`)
+- [x] Premier commit + push
+- [ ] Ajouter le binôme en collaborateur
+- [ ] Ajouter le prof en collaborateur (le repo est privé)
+- [ ] Compléter le tableau Équipe du README
+
+Repo : https://github.com/jeremy-prt/applications-mobiles-et-iot (privé)
 
 ## Étape 5 — Choisir la stack
 
