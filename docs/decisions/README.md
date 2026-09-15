@@ -1,10 +1,9 @@
 # Journal de décisions
 
-Une entrée par décision structurante, au format demandé par le sujet.
+Une entrée courte par décision structurante. Si une rubrique dépasse deux paragraphes, c'est
+qu'on délaye.
 
-## Format
-
-Le sujet demande six rubriques. Nos fichiers les couvrent sous les titres suivants.
+## Correspondance avec les rubriques du sujet
 
 | Rubrique du sujet | Nos sections |
 |---|---|
@@ -15,15 +14,3 @@ Le sujet demande six rubriques. Nos fichiers les couvrent sous les titres suivan
 | Vérification | Vérification |
 | Limite | Ce que ça coûte, Conséquence |
 
-Court. Si une rubrique dépasse deux paragraphes, c'est qu'on délaye.
-
-## Les décisions
-
-| Fichier | Sujet |
-|---|---|
-| 01 | Techno mobile : React Native avec Expo |
-| 02 | Backend : Node, TypeScript et Fastify |
-| 03 | Base de données : PostgreSQL avec TimescaleDB |
-| 04 | Architecture du backend : en couches |
-| 05 | Bibliothèques du backend |
-| 06 | Bibliothèques du mobile |

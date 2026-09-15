@@ -1,24 +1,7 @@
 # Application mobile
 
-## Écrans
-
-```
-Connexion
-   |
-Liste des salles  ──scan QR──>  Association d'un objet
-   |
-Détail d'une salle, ses objets
-   |
-Détail d'un objet : mesures, historique, commande de ventilation
-```
-
-| Écran | Ce qu'il affiche |
-|---|---|
-| Connexion | Identifiant et mot de passe |
-| Liste des salles | Une carte par salle : dernière température, dernier CO2, date, et une pastille d'alerte si le CO2 dépasse le seuil |
-| Détail d'une salle | Les objets de la salle et leur état |
-| Détail d'un objet | Mesures avec unité et date, historique, disponibilité, et le bouton de ventilation si l'utilisateur a le droit |
-| Association | La caméra, puis le résultat du scan |
+Connexion, puis liste des salles, puis détail d'une salle, puis détail d'un objet. Le scan de
+QR code part de la liste des salles.
 
 ## Les quatre états, sur chaque écran qui charge des données
 
@@ -32,9 +15,6 @@ Détail d'un objet : mesures, historique, commande de ventilation
 0 degré et 0 ppm sont des valeurs valides : on ne s'en sert jamais pour signifier l'absence
 de donnée.
 
-L'état hors ligne est à part, il concerne le téléphone et pas la donnée. Une bannière
-l'annonce, et le cache reste affiché avec sa date.
-
 ## Trois situations à ne jamais confondre
 
 | Situation | Ce que voit l'utilisateur |
@@ -42,10 +22,6 @@ l'annonce, et le cache reste affiché avec sa date.
 | L'objet est déconnecté | « Capteur déconnecté », la disponibilité renvoyée par l'API vaut `offline` |
 | L'objet est en ligne mais ne mesure plus | « Dernière mesure il y a 3 minutes », `is_stale` vaut vrai et la disponibilité reste `online` |
 | Le téléphone n'a plus de réseau | Une bannière hors ligne, et les données du cache avec leur date |
-
-C'est le backend qui calcule `is_stale`, pas l'application. Le téléphone a sa propre
-horloge, qui peut différer, et deux appareils afficheraient sinon des choses différentes
-pour la même mesure.
 
 ## Actualisation des données
 
@@ -55,19 +31,13 @@ pour la même mesure.
 | Retour de l'application au premier plan | Nouvel appel |
 | Retour du réseau | Nouvel appel |
 | Pendant qu'un écran est ouvert | Rafraîchissement toutes les 15 secondes |
-| Après l'envoi d'une commande | Interrogation du suivi de la commande toutes les 2 secondes, jusqu'à un statut définitif ou 15 secondes |
-
-Pourquoi 15 secondes : les capteurs publient toutes les 2 secondes, mais rafraîchir aussi
-vite afficherait des variations d'un point de CO2 et viderait la batterie. Et 15 reste bien
-sous le seuil de fraîcheur de 30, donc l'affichage ne passe jamais en « ancienne » à cause
-de notre propre rythme.
+| Après l'envoi d'une commande | Interrogation du suivi toutes les 2 secondes, jusqu'à un statut définitif ou 15 secondes |
 
 ## Hors ligne
 
-La consultation est obligatoire, les commandes sont bloquées.
-
-Le cache est écrit sur le disque du téléphone, donc il survit à la fermeture complète de
-l'application. Chaque donnée affichée porte sa date.
+La consultation reste possible, les commandes sont bloquées. Le cache est écrit sur le disque
+du téléphone, donc il survit à la fermeture complète de l'application, et chaque donnée
+affichée porte sa date.
 
 Une commande tentée hors ligne affiche une explication et n'est pas mise en file. Le sujet
 l'interdit : rejouée au retour du réseau, une action partirait sans que l'utilisateur la
@@ -75,15 +45,8 @@ redemande.
 
 ## Commande de ventilation
 
-Trois retours, et jamais autre chose.
-
-| Retour | Quand |
-|---|---|
-| En attente | La commande est partie, on interroge le suivi |
-| Confirmé | Le backend a reçu le résultat de l'objet |
-| Échec ou résultat inconnu | Rien n'est revenu dans le délai |
-
-L'application n'affiche jamais « activé » sur un simple clic.
+L'application n'affiche jamais « activé » sur un simple clic. Elle affiche en attente,
+confirmé, ou résultat inconnu, selon le statut renvoyé par `GET /commands/:id`.
 
 ## Scan de QR code et permission caméra
 
@@ -94,11 +57,10 @@ L'application n'affiche jamais « activé » sur un simple clic.
 | Code au mauvais format | Message d'erreur, on peut rescanner |
 | Permission refusée | Écran expliquant pourquoi la caméra est nécessaire, avec un lien vers les réglages du téléphone. L'application n'est pas bloquée |
 
-Le kit fournit les contenus exacts à encoder, dans `infra/kit/docs/association.md`, y
-compris un objet inconnu et un format invalide pour la recette.
+Le kit fournit les contenus exacts à encoder dans `infra/kit/docs/association.md`, y compris
+un objet inconnu et un format invalide pour la recette.
 
 ## Accessibilité
 
-Les composants de la bibliothèque d'interface sont déjà étiquetés pour les lecteurs
-d'écran. Ce qu'il reste à vérifier nous-mêmes : le contraste des couleurs d'alerte, et le
-fait qu'une alerte ne repose pas uniquement sur la couleur, mais porte aussi un texte.
+Reste à vérifier nous-mêmes : le contraste des couleurs d'alerte, et le fait qu'une alerte
+porte aussi un texte et pas seulement une couleur.

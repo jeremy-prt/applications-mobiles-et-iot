@@ -14,13 +14,8 @@ Capteurs simulés  ->  Mosquitto  ->  Backend  ->  PostgreSQL
                                      Mobile
 ```
 
-Les capteurs publient sur le broker MQTT. Le backend y est abonné et enregistre les
-mesures. L'application mobile n'écoute pas le broker, elle interroge l'API du backend.
-
-## Organisation
-
-Le dossier `backend` contient notre service, `mobile` notre application, `infra/kit` le
-kit fourni par l'école et `docs` la documentation du projet.
+`backend` : notre service. `mobile` : notre application. `infra/kit` : le kit fourni par
+l'école. `docs` : la documentation.
 
 ## Lancer le projet
 
@@ -31,18 +26,9 @@ cp .env.example .env
 docker compose up -d --build --wait
 ```
 
-Une seule commande lance le broker, les capteurs simulés, la base et le backend.
-Les migrations de schéma sont appliquées automatiquement avant le démarrage de l'API.
+Vérifier avec `curl http://localhost:3000/health` puis `curl http://localhost:3000/rooms`.
 
-Pour vérifier :
-
-```sh
-curl http://localhost:3000/health
-curl http://localhost:3000/rooms
-```
-
-Pour arrêter : `docker compose down`. Pour repartir d'une base vide :
-`docker compose down -v`.
+Arrêter : `docker compose down`. Repartir d'une base vide : `docker compose down -v`.
 
 | Service | Adresse | Remarque |
 |---|---|---|
@@ -52,8 +38,8 @@ Pour arrêter : `docker compose down`. Pour repartir d'une base vide :
 
 ## Lancer l'application mobile
 
-Prérequis : Expo Go installé sur le téléphone, et un compte Expo gratuit. Le téléphone et
-la machine doivent être sur le même réseau.
+Prérequis : Expo Go installé sur le téléphone, un compte Expo gratuit, et le téléphone sur
+le même réseau que la machine.
 
 ```sh
 cd mobile
@@ -63,25 +49,21 @@ npx expo start
 
 Scanner le code affiché dans le terminal avec Expo Go.
 
-L'application trouve le backend toute seule : elle prend l'adresse de la machine qui fait
-tourner le serveur Expo, à laquelle le téléphone est déjà connecté. Rien à configurer, même
-en changeant de réseau.
-
-Si le backend tourne sur une autre machine ou sur un autre port, copier `mobile/.env.example`
-en `mobile/.env` et renseigner `EXPO_PUBLIC_API_URL`. `localhost` ne fonctionnerait pas : sur
-le téléphone, il désigne le téléphone lui-même.
+L'application prend l'adresse de la machine qui fait tourner le serveur Expo, donc rien à
+configurer, même en changeant de réseau. Si le backend tourne sur une autre machine ou un
+autre port, copier `mobile/.env.example` en `mobile/.env` et renseigner
+`EXPO_PUBLIC_API_URL`.
 
 ## Simuler des pannes
 
-Le kit permet de provoquer des incidents depuis `infra/kit`, par exemple :
+Depuis `infra/kit` :
 
 ```sh
 docker compose run --rm tools incident sensor-001 duplicate
 docker compose run --rm tools incident sensor-001 reset
 ```
 
-La liste complète est dans infra/kit/README.md. Les résultats attendus pour chacun sont
-dans docs/recette.md.
+Liste complète dans infra/kit/README.md, résultats attendus dans docs/recette.md.
 
 ## Équipe
 

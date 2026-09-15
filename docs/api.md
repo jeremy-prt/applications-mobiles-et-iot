@@ -1,22 +1,15 @@
 # Contrat de l'API
 
-Interface entre le backend et l'application mobile. REST, JSON, UTF-8.
+Interface entre le backend et l'application mobile. REST, JSON, UTF-8. Dates en ISO 8601
+UTC, comme dans le contrat MQTT du kit. Toutes les routes sauf la connexion attendent un
+en-tête `Authorization: Bearer <jeton>`.
 
-## Conventions
-
-Les dates sont au format ISO 8601 en UTC, comme dans le contrat MQTT du kit.
-
-Une erreur renvoie toujours la même forme :
+Une erreur renvoie toujours la même forme, et le mobile s'appuie sur `code`, jamais sur
+`message`, destiné aux humains :
 
 ```json
 { "error": { "code": "DEVICE_NOT_FOUND", "message": "Objet inconnu" } }
 ```
-
-Le mobile s'appuie sur `code` pour choisir quoi afficher, jamais sur `message`, qui est
-destiné aux humains.
-
-Toutes les routes sauf la connexion attendent un en-tête
-`Authorization: Bearer <jeton>`.
 
 ## Les routes
 
@@ -33,7 +26,7 @@ Toutes les routes sauf la connexion attendent un en-tête
 | POST | `/associations` | Associer un objet scanné à une salle | commande |
 | GET | `/alerts` | Les alertes en cours et récentes | consultation |
 
-## Ce que le mobile a besoin de savoir sur chaque mesure
+## La forme d'une mesure
 
 Toute réponse qui contient une mesure porte les mêmes champs :
 
@@ -48,21 +41,20 @@ Toute réponse qui contient une mesure porte les mêmes champs :
 }
 ```
 
-`recorded_at` est l'heure du capteur, pas l'heure de la réponse. `is_stale` est calculé par
-le backend à partir du seuil de fraîcheur déclaré dans `docs/architecture.md`, pour que le
-mobile n'ait pas à refaire ce calcul avec une horloge qui peut différer. `availability`
-vient du broker et dit si l'objet est joignable, ce qui est une information différente de
-la fraîcheur.
+`recorded_at` est l'heure du capteur, pas celle de la réponse. `is_stale` est calculé par le
+backend à partir du seuil de fraîcheur déclaré dans `docs/architecture.md`, pour que le
+mobile n'ait pas à le recalculer avec une horloge qui peut différer. `availability` vient du
+broker et dit si l'objet est joignable, ce qui est différent de la fraîcheur.
 
 ## L'envoi d'une commande
 
-`POST /devices/:id/commands` ne renvoie pas le résultat de l'action. Il renvoie un
-identifiant de commande et le statut `pending`.
-
-Le mobile interroge ensuite `GET /commands/:id` jusqu'à obtenir un statut définitif.
+`POST /devices/:id/commands` ne renvoie pas le résultat de l'action, mais un identifiant de
+commande et le statut `pending`. Le mobile interroge ensuite `GET /commands/:id` jusqu'à un
+statut définitif. L'application ne doit jamais afficher « activé » tant que l'objet n'a pas
+confirmé.
 
 Nos statuts ne sont pas ceux du kit. Le simulateur répond `executed` ou `rejected` avec une
-raison, et ne répond pas du tout quand il est en mode sans réponse. La correspondance :
+raison, et ne répond pas du tout en mode sans réponse.
 
 | Notre statut | D'où il vient |
 |---|---|
@@ -71,25 +63,18 @@ raison, et ne répond pas du tout quand il est en mode sans réponse. La corresp
 | `rejected` | Le simulateur a répondu `rejected`, sa raison est conservée |
 | `unknown` | Rien n'est revenu dans les 15 secondes. On ne sait pas si l'action a eu lieu |
 
-Il n'y a pas de statut `failed` : un échec supposerait qu'on sait que l'action n'a pas eu
-lieu, ce qui n'est jamais le cas en l'absence de réponse.
+Pas de statut `failed` : un échec supposerait qu'on sait que l'action n'a pas eu lieu, ce
+qui n'est jamais le cas en l'absence de réponse.
 
 Une réponse arrivant après les 15 secondes est quand même traitée et corrélée par son
-`command_id`. L'état réel de la ventilation reste celui du topic `state`.
-
-Ce découpage en deux appels est voulu : l'application ne doit jamais afficher « activé »
-tant que l'objet n'a pas confirmé.
-
-## Le contrôle des droits
-
-Le droit est vérifié dans le backend, dans un hook Fastify qui s'exécute avant la route.
-Masquer un bouton dans l'application ne constitue pas un contrôle d'accès : un appel direct
-à l'API avec un compte sans droit doit être refusé.
+`command_id`. Une commande abandonnée n'est jamais rejouée automatiquement, et toute nouvelle
+intention utilise un nouveau `command_id`. L'état réel de la ventilation reste celui du topic
+`state`.
 
 ## État au 15 septembre 2026
 
-Seules `/health` et `/rooms` sont implémentées, et sans authentification. Le reste de ce
-document décrit le contrat visé, pas ce qui existe.
+Seules `/health` et `/rooms` sont implémentées, et sans authentification. Le reste décrit le
+contrat visé.
 
 Restent à écrire : le détail de chaque route, les corps de requête et de réponse, et la
 liste complète des codes d'erreur.

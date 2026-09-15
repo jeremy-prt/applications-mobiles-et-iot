@@ -12,24 +12,14 @@ Aucun support de présentation long n'est demandé.
 
 ## Questions individuelles
 
-Chacun répond seul à une question IoT et une question mobile. On prépare donc au moins un
-exemple de chaque, par personne.
+Chacun répond seul à une question IoT et une question mobile, donc au moins un exemple de
+chaque par personne.
 
-### Jérémy Perret
-
-| | À préparer |
-|---|---|
-| Exemple IoT | |
-| Exemple mobile | |
-| Correction apportée à l'IA | |
-
-### Kylian Patry
-
-| | À préparer |
-|---|---|
-| Exemple IoT | |
-| Exemple mobile | |
-| Correction apportée à l'IA | |
+| À préparer | Jérémy Perret | Kylian Patry |
+|---|---|---|
+| Exemple IoT | | |
+| Exemple mobile | | |
+| Correction apportée à l'IA | | |
 
 ## Les perturbations à démontrer
 
