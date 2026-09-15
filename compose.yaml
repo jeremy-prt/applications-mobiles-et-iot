@@ -1,0 +1,94 @@
+# Lance tout le projet : le kit fourni par l'école, notre base et notre backend.
+# Le kit n'est pas modifié, il est inclus tel qu'il a été livré.
+#
+# compose.yaml est le nom défini par la spécification Compose. docker-compose.yml
+# est l'ancien nom, encore accepté.
+#
+# Les images sont figées par leur empreinte sha256 et pas seulement par leur tag :
+# un tag peut être republié avec un contenu différent, l'empreinte non.
+
+include:
+  - infra/kit/compose.yaml
+
+x-durcissement: &durcissement
+  # Empêche un processus du conteneur d'obtenir plus de droits que ceux qu'il a
+  # au démarrage, par exemple via un binaire setuid.
+  security_opt:
+    - no-new-privileges:true
+  # Fournit un processus 1 qui transmet les signaux et récupère les processus
+  # orphelins, sans quoi l'arrêt propre sur SIGTERM ne fonctionne pas.
+  init: true
+
+services:
+  postgres:
+    <<: *durcissement
+    image: timescale/timescaledb:2.30.0-pg18@sha256:69114a6774869b115bd2eb594f749416c8e34be07ceaaf327ed152426485390a
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-campus}
+      POSTGRES_USER: ${POSTGRES_USER:-campus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copiez .env.example en .env}
+    ports:
+      # Lié à 127.0.0.1 : la base n'est joignable que depuis cette machine.
+      # Seule l'API a besoin d'être exposée au réseau local.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # Volume nommé et pas un dossier de la machine : sur Windows les
+      # permissions d'un dossier monté font refuser le démarrage à Postgres.
+      # Le chemin a changé avec PostgreSQL 18, il ne finit plus par /data.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-campus} -d ${POSTGRES_DB:-campus}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  migrate:
+    <<: *durcissement
+    build:
+      context: ./backend
+      target: runtime
+    command: ["npx", "node-pg-migrate", "up"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-campus}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-campus}
+    read_only: true
+    cap_drop: [ALL]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    <<: *durcissement
+    build:
+      context: ./backend
+      target: runtime
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-campus}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-campus}
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: backend
+      MQTT_PASSWORD: ${BACKEND_PASSWORD:-backend-demo}
+      MQTT_CLIENT_ID: campus-backend
+      JWT_SECRET: ${JWT_SECRET:?copiez .env.example en .env}
+      STALE_AFTER_SECONDS: 30
+      CO2_ALERT_ON_PPM: 1000
+      CO2_ALERT_OFF_PPM: 800
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      # Sans adresse : le téléphone doit joindre l'API depuis le réseau local.
+      - "${API_PORT:-3000}:3000"
+    # Le conteneur n'écrit nulle part : tout l'état est en base.
+    read_only: true
+    cap_drop: [ALL]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:

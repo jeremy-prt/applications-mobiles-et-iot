@@ -22,25 +22,37 @@ mesures. L'application mobile n'écoute pas le broker, elle interroge l'API du b
 Le dossier `backend` contient notre service, `mobile` notre application, `infra/kit` le
 kit fourni par l'école et `docs` la documentation du projet.
 
-## Lancer l'environnement
+## Lancer le projet
 
-Prérequis : Docker Desktop démarré.
+Prérequis : Git et Docker Desktop démarré, avec les conteneurs Linux sur Windows.
 
 ```sh
-cd infra/kit
+cp .env.example .env
 docker compose up -d --build --wait
-docker compose run --rm --build tools watch --count 5
 ```
 
-La seconde commande affiche les mesures des capteurs. Le broker écoute sur 127.0.0.1
-port 1883, le backend s'y connecte avec le compte `backend` et le mot de passe
-`backend-demo`.
+Une seule commande lance le broker, les capteurs simulés, la base et le backend.
+Les migrations de schéma sont appliquées automatiquement avant le démarrage de l'API.
 
-Pour arrêter : `docker compose down`.
+Pour vérifier :
 
-## Lancer le backend
+```sh
+curl http://localhost:3000/health
+curl http://localhost:3000/rooms
+```
 
-À compléter.
+Pour arrêter : `docker compose down`. Pour repartir d'une base vide :
+`docker compose down -v`.
+
+| Service | Adresse | Remarque |
+|---|---|---|
+| API | http://localhost:3000 | Ouverte sur le réseau local, pour le téléphone |
+| Broker MQTT | 127.0.0.1:1883 | Compte `backend`, mot de passe dans `.env` |
+| PostgreSQL | 127.0.0.1:5432 | Accessible depuis cette machine seulement |
+
+Le téléphone ne peut pas utiliser `localhost`, qui désigne le téléphone lui-même.
+Il faut l'adresse IP de la machine sur le réseau local, par exemple
+`http://192.168.1.20:3000`.
 
 ## Lancer l'application mobile
 

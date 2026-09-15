@@ -7,3 +7,4 @@ __pycache__/
 # notes de travail et config perso, hors livrable
 notes/
 .claude/
+dist/

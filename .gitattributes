@@ -1,0 +1,27 @@
+# LF dans le dépôt et dans le répertoire de travail, quel que soit le système
+* text=auto eol=lf
+
+*.sh            text eol=lf
+*.ts            text eol=lf
+*.tsx           text eol=lf
+*.js            text eol=lf
+*.json          text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.sql           text eol=lf
+*.conf          text eol=lf
+*.md            text eol=lf
+.env.example    text eol=lf
+Dockerfile      text eol=lf
+.dockerignore   text eol=lf
+.gitattributes  text eol=lf
+
+# Outils Windows
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary

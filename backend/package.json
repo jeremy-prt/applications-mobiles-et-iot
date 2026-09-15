@@ -1,0 +1,33 @@
+{
+  "name": "campus-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "node --env-file=.env --watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "migrate": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "migrate:create": "node-pg-migrate -j ts create"
+  },
+  "dependencies": {
+    "@fastify/jwt": "10.2.2",
+    "argon2": "0.45.1",
+    "fastify": "5.12.4",
+    "fastify-type-provider-zod": "7.0.0",
+    "kysely": "0.29.5",
+    "mqtt": "5.15.2",
+    "node-pg-migrate": "9.0.0",
+    "pg": "8.23.0",
+    "pino": "10.3.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "@types/pg": "8.15.5",
+    "typescript": "7.0.2"
+  }
+}
