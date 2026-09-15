@@ -52,10 +52,9 @@ Résultats des manips notés dans `resultats.md`.
 - [x] Y remettre le kit (dans `infra/kit`)
 - [x] Premier commit + push
 - [ ] Ajouter le binôme en collaborateur
-- [ ] Ajouter le prof en collaborateur (le repo est privé)
 - [ ] Compléter le tableau Équipe du README
 
-Repo : https://github.com/jeremy-prt/applications-mobiles-et-iot (privé)
+Repo : https://github.com/jeremy-prt/applications-mobiles-et-iot (public)
 
 ## Étape 5 — Choisir la stack
 
@@ -64,23 +63,39 @@ Repo : https://github.com/jeremy-prt/applications-mobiles-et-iot (privé)
 - [ ] Choisir la techno mobile + écrire pourquoi
 - [ ] Noter ces 3 choix dans `docs/decisions/`
 
-## Étape 6 — J1 : la mesure arrive sur le téléphone
+## Étape 6 — Backend : recevoir et exposer une mesure
 
-- [ ] Backend : se connecter à MQTT et recevoir une mesure
-- [ ] Backend : la stocker
-- [ ] Backend : l'exposer via une route API
-- [ ] Mobile : écran qui appelle l'API et affiche la mesure
-- [ ] Mobile : afficher unité + date
-- [ ] Mobile : gérer l'état de chargement
-- [ ] Mobile : gérer l'erreur API
-- [ ] Vérifier qu'une variation du simulateur arrive bien jusqu'à l'écran
+- [ ] Se connecter au broker avec le compte `backend` / `backend-demo`
+- [ ] S'abonner à `campus/v1/devices/+/telemetry`
+- [ ] Afficher une mesure reçue dans les logs (première preuve que ça marche)
+- [ ] Stocker la dernière mesure de chaque capteur
+- [ ] Exposer une route `GET /rooms` : la liste des salles avec leur dernière mesure
+- [ ] Ajouter le backend au `compose.yaml` du kit
+- [ ] Vérifier la route avec curl
 
-## Étape 7 — Livrables de J1
+## Étape 7 — Mobile : afficher la mesure
+
+- [ ] Créer le projet mobile
+- [ ] Écran liste des salles qui appelle l'API
+- [ ] Afficher température, CO2, leur unité et la date de la mesure
+- [ ] État de chargement visible
+- [ ] État d'erreur visible si l'API ne répond pas
+- [ ] Faire tourner sur un téléphone ou un émulateur
+- [ ] Utiliser l'IP de la machine, pas `localhost` (sur le téléphone, `localhost` = le téléphone)
+
+## Étape 8 — Prouver les 4 jalons de J1
+
+- [ ] Une variation du simulateur arrive jusqu'à l'écran du téléphone
+- [ ] On retrouve le même `sensor-001` dans MQTTX, dans l'API et sur l'écran
+- [ ] Le mobile gère le chargement et une erreur d'API (couper le backend pour le prouver)
+- [ ] Chacun de nous deux sait expliquer le trajet complet de la donnée
+
+## Étape 9 — Livrables de fin de J1
 
 - [ ] `docs/architecture.md` : schéma de la chaîne + technos retenues
-- [ ] `docs/J1.md` : les 3 questions + preuves des 4 jalons
+- [ ] `docs/J1.md` : les 3 questions + les preuves des 4 jalons
 - [ ] `README.md` : comment lancer l'environnement, le backend, le mobile
-- [ ] Contributions de chacun notées
+- [ ] Les 4 rubriques de fin dans `J1.md` + contributions de chacun
 - [ ] Tag Git `J1` + push
 
 ---
