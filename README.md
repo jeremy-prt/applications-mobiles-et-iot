@@ -1,35 +1,38 @@
 # Campus connecté
 
-Projet M2 — Applications mobiles et objets connectés.
+Projet de M2 en applications mobiles et objets connectés.
 
-Superviser la température et le CO2 de salles de cours depuis un téléphone, et commander
-leur ventilation. Les capteurs sont simulés, le reste de la chaîne est réel.
+Le but est de superviser la température et le CO2 de salles de cours depuis un téléphone,
+et de commander leur ventilation à distance. Les capteurs sont simulés. Le reste de la
+chaîne est réel : le broker, le backend, la base de données et l'application mobile.
 
-## Architecture
+## Comment ça marche
+
+Les capteurs publient leurs mesures sur un broker MQTT. Le backend est abonné à ce broker,
+il reçoit les mesures et les enregistre. L'application mobile n'écoute pas le broker :
+elle interroge l'API du backend.
 
 ```
-[Capteurs simulés] --MQTT--> [Mosquitto] --MQTT--> [backend/] <--> [base de données]
-                                                        |
-                                                       API HTTP
-                                                        |
-                                                   [mobile/]
+Capteurs simulés  ->  Mosquitto  ->  Backend  ->  Base de données
+                                        |
+                                       API
+                                        |
+                                     Mobile
 ```
 
-Détail dans [docs/architecture.md](docs/architecture.md).
+Le détail se trouve dans docs/architecture.md.
 
-## Structure du dépôt
+## Organisation du dépôt
 
-| Dossier | Contenu |
-|---|---|
-| `backend/` | Notre service : ingestion MQTT, stockage, API |
-| `mobile/` | Notre application mobile |
-| `infra/kit/` | Le kit fourni : broker Mosquitto et simulateur de capteurs |
-| `docs/` | Contexte, architecture, décisions, journaux de bord J1 à J4 |
+Le dossier `backend` contient notre service : il lit le MQTT, stocke les mesures et expose
+l'API. Le dossier `mobile` contient notre application. Le dossier `infra/kit` contient le
+kit fourni par l'école, avec le broker et le simulateur de capteurs. Le dossier `docs`
+contient le contexte du projet, l'architecture, les décisions techniques et les journaux
+de bord de chaque journée.
 
-## Prérequis
+## Avant de commencer
 
-- Git
-- Docker Desktop démarré, avec la commande `docker compose`
+Il faut Git et Docker Desktop démarré, avec la commande `docker compose` disponible.
 
 ## Lancer l'environnement
 
@@ -38,16 +41,16 @@ cd infra/kit
 docker compose up -d --build --wait
 ```
 
-Vérifier que ça tourne :
+Pour vérifier que les capteurs publient bien :
 
 ```sh
-docker compose ps
 docker compose run --rm --build tools watch --count 5
 ```
 
-Le broker écoute sur `127.0.0.1:1883`. Compte pour notre backend : `backend` / `backend-demo`.
+Le broker écoute sur 127.0.0.1 port 1883. Le compte utilisé par notre backend est
+`backend` avec le mot de passe `backend-demo`.
 
-Arrêter :
+Pour tout arrêter :
 
 ```sh
 docker compose down
@@ -61,9 +64,9 @@ docker compose down
 
 À compléter.
 
-## Observer et provoquer des incidents
+## Provoquer des incidents
 
-Toutes les commandes se lancent depuis `infra/kit`.
+Le kit permet de simuler des pannes. Toutes ces commandes se lancent depuis `infra/kit`.
 
 ```sh
 docker compose run --rm tools command sensor-001 on
@@ -71,13 +74,11 @@ docker compose run --rm tools incident sensor-001 duplicate
 docker compose run --rm tools incident sensor-001 reset
 ```
 
-La liste complète est dans [infra/kit/README.md](infra/kit/README.md).
-Ce qu'on a observé en lançant ces incidents est noté dans
-[docs/observations-kit.md](docs/observations-kit.md).
+La liste complète est dans infra/kit/README.md. Ce que ces incidents produisent
+réellement sur le réseau est décrit dans docs/observations-kit.md.
 
 ## Équipe
 
-| Membre | Rôle |
-|---|---|
-| Jérémy Perret | à définir |
-| à compléter | à définir |
+Jérémy Perret, rôle à définir.
+
+Second membre à compléter.
