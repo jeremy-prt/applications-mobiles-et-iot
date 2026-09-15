@@ -7,7 +7,7 @@ Les capteurs sont simulés. Le broker, le backend, la base de données et l'appl
 mobile sont réels.
 
 ```
-Capteurs simulés  ->  Mosquitto  ->  Backend  ->  Base de données
+Capteurs simulés  ->  Mosquitto  ->  Backend  ->  PostgreSQL
                                         |
                                        API
                                         |
