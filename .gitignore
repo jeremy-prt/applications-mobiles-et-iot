@@ -8,3 +8,6 @@ __pycache__/
 notes/
 .claude/
 dist/
+
+# instructions de projet pour Claude, perso
+CLAUDE.md
