@@ -60,4 +60,4 @@ est décrit dans docs/observations-kit.md.
 
 ## Équipe
 
-Jérémy Perret, rôle à définir. Second membre à compléter.
+Jérémy Perret et Kylian Patrie.
