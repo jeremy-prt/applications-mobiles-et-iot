@@ -1,4 +1,4 @@
-# Suivi — Campus connecté
+# Suivi du projet Campus connecté
 
 Petit pas par petit pas. On coche au fur et à mesure.
 
@@ -8,7 +8,7 @@ Petit pas par petit pas. On coche au fur et à mesure.
 - [x] Groupe de 2 formé
 - [ ] Choisir qui fait quoi en premier (backend / mobile)
 
-## Étape 1 — Faire tourner le kit fourni
+## Étape 1 : Faire tourner le kit fourni
 
 - [x] Cloner le kit dans `kit/`
 - [x] Vérifier que Docker tourne
@@ -18,7 +18,7 @@ Petit pas par petit pas. On coche au fur et à mesure.
 
 Résultat : ça marche. On reçoit température et CO2 de sensor-001 à 003.
 
-## Étape 2 — Installer un client MQTT graphique
+## Étape 2 : Installer un client MQTT graphique
 
 - [x] Installer MQTTX (`brew install --cask mqttx`)
 - [x] Créer la connexion : `127.0.0.1` port `1883`, user `teacher` / `teacher-demo`
@@ -28,7 +28,7 @@ Résultat : ça marche. On reçoit température et CO2 de sensor-001 à 003.
 Note : MQTT Explorer n'est plus installable via Homebrew (retiré le 1er septembre 2026,
 il ne passe plus le Gatekeeper d'Apple). MQTTX fait la même chose.
 
-## Étape 3 — Comprendre ce qui passe sur le réseau
+## Étape 3 : Comprendre ce qui passe sur le réseau
 
 À faire dans MQTTX, en lançant les commandes en parallèle depuis `kit/`.
 
@@ -45,7 +45,7 @@ il ne passe plus le Gatekeeper d'Apple). MQTTX fait la même chose.
 
 Résultats des manips notés dans `resultats.md`.
 
-## Étape 4 — Créer notre repo d'équipe
+## Étape 4 : Créer notre repo d'équipe
 
 - [x] Créer le monorepo GitHub (1 seul pour nous deux)
 - [x] Créer la structure : `backend/ mobile/ infra/ docs/ README.md`
@@ -56,14 +56,14 @@ Résultats des manips notés dans `resultats.md`.
 
 Repo : https://github.com/jeremy-prt/applications-mobiles-et-iot (public)
 
-## Étape 5 — Choisir la stack
+## Étape 5 : Choisir la stack
 
 - [ ] Choisir le langage/framework backend + écrire pourquoi
 - [ ] Choisir la base de données + écrire pourquoi
 - [ ] Choisir la techno mobile + écrire pourquoi
 - [ ] Noter ces 3 choix dans `docs/decisions/`
 
-## Étape 6 — Backend : recevoir et exposer une mesure
+## Étape 6 : le backend reçoit et expose une mesure
 
 - [ ] Se connecter au broker avec le compte `backend` / `backend-demo`
 - [ ] S'abonner à `campus/v1/devices/+/telemetry`
@@ -73,7 +73,7 @@ Repo : https://github.com/jeremy-prt/applications-mobiles-et-iot (public)
 - [ ] Ajouter le backend au `compose.yaml` du kit
 - [ ] Vérifier la route avec curl
 
-## Étape 7 — Mobile : afficher la mesure
+## Étape 7 : le mobile affiche la mesure
 
 - [ ] Créer le projet mobile
 - [ ] Écran liste des salles qui appelle l'API
@@ -83,14 +83,14 @@ Repo : https://github.com/jeremy-prt/applications-mobiles-et-iot (public)
 - [ ] Faire tourner sur un téléphone ou un émulateur
 - [ ] Utiliser l'IP de la machine, pas `localhost` (sur le téléphone, `localhost` = le téléphone)
 
-## Étape 8 — Prouver les 4 jalons de J1
+## Étape 8 : Prouver les 4 jalons de J1
 
 - [ ] Une variation du simulateur arrive jusqu'à l'écran du téléphone
 - [ ] On retrouve le même `sensor-001` dans MQTTX, dans l'API et sur l'écran
 - [ ] Le mobile gère le chargement et une erreur d'API (couper le backend pour le prouver)
 - [ ] Chacun de nous deux sait expliquer le trajet complet de la donnée
 
-## Étape 9 — Livrables de fin de J1
+## Étape 9 : Livrables de fin de J1
 
 - [ ] `docs/architecture.md` : schéma de la chaîne + technos retenues
 - [ ] `docs/J1.md` : les 3 questions + les preuves des 4 jalons

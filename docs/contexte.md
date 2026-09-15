@@ -1,4 +1,4 @@
-# Contexte du projet — Campus connecté (M2 Applications mobiles & IoT)
+# Contexte du projet Campus connecté
 
 ## En une phrase
 
@@ -19,7 +19,7 @@ une donnée ancienne et un équipement qui ne répond plus.
 
 ## Ce qui est fourni (le kit)
 
-Dépôt : https://github.com/LargeGaultier/MdsIoTMobile — cloné ici dans `kit/`.
+Dépôt d'origine : https://github.com/LargeGaultier/MdsIoTMobile. Il est intégré ici dans `infra/kit`.
 
 - Un broker MQTT **Mosquitto**.
 - Trois objets simulés `sensor-001` à `sensor-003`, salles 203 à 205.
@@ -121,7 +121,7 @@ R05 téléphone hors ligne, R06 reconnexion et cycle de vie, R07 broker interrom
 R08 commande exécutée, R09 commande sans réponse, R10 association et permission,
 R11 autorisation, R12 alerte et retour à la normale, R13 reproductibilité.
 
-Détail : page « 03 — Recette et preuves de fonctionnement » du sujet.
+Détail dans la page « 03 Recette et preuves de fonctionnement » du sujet.
 
 ## Points d'attention
 

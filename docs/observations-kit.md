@@ -1,4 +1,4 @@
-# Résultats des manips — ce qu'on a vu passer sur le réseau
+# Ce qu'on a observé sur le réseau
 
 Toutes les commandes se lancent depuis le dossier `kit/`.
 Les messages ci-dessous sont de vraies captures, pas des exemples inventés.
@@ -36,7 +36,7 @@ Il se termine par un numéro qui s'incrémente : `-292`, `-293`, `-294`...
 
 ---
 
-## Manip 1 — Allumer la ventilation
+## Manip 1 : allumer la ventilation
 
 ```sh
 docker compose run --rm tools command sensor-001 on
@@ -102,7 +102,7 @@ descend d'environ 45. Le modèle est borné entre 420 et 2500 ppm.
 
 ---
 
-## Manip 2 — Le doublon
+## Manip 2 : le doublon
 
 ```sh
 docker compose run --rm tools incident sensor-001 duplicate
@@ -131,7 +131,7 @@ connu. Si oui, on jette. C'est le jalon de J2.
 
 ---
 
-## Manip 3 — La mesure en retard
+## Manip 3 : la mesure en retard
 
 ```sh
 docker compose run --rm tools incident sensor-001 delay
@@ -162,7 +162,7 @@ valeur affichée.
 
 ---
 
-## Manip 4 — Le message invalide
+## Manip 4 : le message invalide
 
 ```sh
 docker compose run --rm tools incident sensor-001 invalid
@@ -186,7 +186,7 @@ redevenu normal.
 ### À quoi ça correspond
 
 Un capteur qui déconne envoie n'importe quoi. Si notre backend fait un calcul sur cette
-valeur, il plante — et s'il plante, il arrête de traiter **tous** les capteurs.
+valeur, il plante. Et s'il plante, il arrête de traiter tous les capteurs.
 
 **Ce qu'on devra faire :** valider chaque message avant de le traiter. S'il est mauvais :
 on le rejette, on écrit une ligne de log pour pouvoir l'expliquer, et **le service
@@ -194,7 +194,7 @@ continue de tourner**. C'est le scénario R02 de la recette.
 
 ---
 
-## Manip 5 — Le capteur muet
+## Manip 5 : le capteur muet
 
 ```sh
 docker compose run --rm tools incident sensor-001 pause
