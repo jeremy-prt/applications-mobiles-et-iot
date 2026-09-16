@@ -10,6 +10,7 @@ PostgreSQL 18 avec l'extension TimescaleDB, une seule base. Toutes les dates son
 | `rooms` | Les salles du campus |
 | `devices` | Les objets, et la salle à laquelle ils sont rattachés |
 | `telemetry` | Toutes les mesures reçues. C'est l'hypertable TimescaleDB |
+| `telemetry_bucket` | Les tranches de 5 minutes calculées par le job : moyenne, minimum, maximum |
 | `device_state` | Le dernier état connu de chaque objet, une ligne par objet |
 | `users` | Les comptes |
 | `roles` et `user_roles` | Qui a le droit de consulter, qui a le droit de commander |
@@ -88,3 +89,46 @@ jamais un message vieux de plus de sept jours. Et au redémarrage du simulateur 
 change, donc tous les `message_id` sont renouvelés : une mesure identique republiée après un
 redémarrage serait enregistrée comme nouvelle. C'est conforme au contrat, le kit considère
 qu'un redémarrage produit de nouvelles observations.
+
+## La zone brute, dans MongoDB
+
+Depuis J2, le consommateur MQTT n'écrit plus directement dans PostgreSQL. Il dépose chaque
+message dans la collection `messages` de la base `campus_brut`, sans le valider. Le job de
+consolidation la relit et écrit dans les tables ci-dessus.
+
+| Champ | Contenu |
+|---|---|
+| `topic` | Le topic MQTT, tel quel |
+| `device_id` | Extrait du topic, pas du corps : c'est du routage, pas une règle métier |
+| `genre` | `telemetry`, `state`, `availability`, ou `inconnu` |
+| `payload` | Le message décodé. Absent quand ce n'était pas du JSON |
+| `texte` | Le texte original, gardé seulement quand on n'a pas su le décoder |
+| `received_at` | Heure de réception par le backend |
+| `statut` | `en_attente`, `traite`, `rejete`, `abandonne` |
+| `essais` | Nombre de passages du job qui n'ont pas pu l'appliquer |
+| `motif` | Pourquoi il a été rejeté, ou écarté comme doublon |
+
+Deux index : `(statut, received_at)` pour que le job lise les messages non traités dans leur
+ordre d'arrivée, et un index TTL de 7 jours sur `received_at` qui tient la rétention.
+
+Un message `state` ou `availability` qui arrive avant que l'objet existe en base reste en
+attente et repasse au tour suivant. Au bout de 60 passages, soit 5 minutes, il est abandonné.
+Ce mécanisme remplace la table en mémoire utilisée en J1, qui disparaissait au redémarrage.
+
+La déduplication reste dans PostgreSQL, sur la contrainte d'unicité. Une zone brute doit
+accepter les doublons, sinon elle ne garde plus ce qui est arrivé : le même `message_id` peut
+donc s'y trouver deux fois, avec le motif « doublon écarté » sur le second.
+
+## Les tranches d'agrégat
+
+`telemetry_bucket` porte une ligne par objet et par tranche de 5 minutes, avec la clé primaire
+`(device_id, bucket_start, bucket_minutes)`. Les bornes sont alignées sur l'heure ronde, donc
+recalculer une tranche donne toujours le même résultat et écrase la précédente au lieu d'en
+créer une seconde.
+
+Le job recalcule une tranche entière à partir de `telemetry` au lieu de l'incrémenter. C'est
+plus de travail, mais le résultat ne dépend pas de l'ordre d'arrivée : une mesure en retard
+corrige sa tranche, et rejouer le job donne exactement le même résultat.
+
+Les tranches plus vieilles que 7 jours sont supprimées par le job, pour rester d'accord avec
+la rétention de `telemetry` : une tranche plus ancienne ne pourrait plus être recalculée.

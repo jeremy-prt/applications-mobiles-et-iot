@@ -11,11 +11,11 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 |---|---|---|---|---|
 | R01 | Mesure de bout en bout | à faire | | |
 | R02 | Message invalide | à faire | | |
-| R03 | Doublon et retard | à faire | | |
-| R04 | Capteur silencieux | à faire | | |
-| R05 | Téléphone hors ligne | à faire | | |
-| R06 | Reconnexion et cycle de vie | à faire | | |
-| R07 | Broker interrompu | à faire | | |
+| R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03 |
+| R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online` | Fiche R04 |
+| R05 | Téléphone hors ligne | partiel | Serveur coupé : les valeurs restent, datées, la fraîcheur n'est plus affirmée, le cache survit à un redémarrage. La coupure du réseau du téléphone et le blocage d'une commande restent à faire | Fiche R05 |
+| R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini et sans doublon d'écran. L'arrière-plan reste à exercer sur l'appareil | Fiche R06 |
+| R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07 |
 | R08 | Commande exécutée | à faire | | |
 | R09 | Commande sans réponse | à faire | | |
 | R10 | Association et permission caméra | à faire | | |
@@ -49,7 +49,111 @@ Augmenter le nombre d'objets ou leur fréquence dans `infra/kit/devices.json`, p
 le contexte, le volume, le temps de réponse observé et les limites. Aucun chiffre de
 performance n'est imposé, l'objectif est de mesurer et d'expliquer.
 
-## Fiche de preuve
+## Fiches de preuve
+
+### R03, doublon et retard
+
+- Scénario et responsable : R03, Jérémy Perret
+- Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt, kit non modifié
+- Conditions initiales et paramètres : trois capteurs en ligne, publication toutes les 2 secondes, seuil de fraîcheur 30 secondes, job de consolidation toutes les 5 secondes
+- Action effectuée :
+
+```sh
+docker compose --profile tools run --rm tools incident sensor-001 duplicate
+docker compose --profile tools run --rm tools incident sensor-001 delay
+```
+
+- Résultat attendu : aucun doublon métier dans l'historique, et le dernier état ne recule pas
+- Résultat observé et preuve :
+
+```sh
+docker compose exec mongo mongosh campus_brut --quiet --eval '
+  db.messages.aggregate([{$match:{genre:"telemetry"}},
+    {$group:{_id:"$payload.message_id",recus:{$sum:1},motifs:{$addToSet:"$motif"}}},
+    {$match:{recus:{$gt:1}}}]).toArray()'
+# [{ _id: "30ce989...-420", recus: 2, motifs: ["doublon écarté"] }]
+
+docker compose exec postgres psql -U campus -d campus -tAc \
+  "select count(*) from (select device_id, message_id from telemetry
+   group by device_id, message_id having count(*)>1) x"
+# 0
+```
+
+Le message est bien arrivé deux fois, et une seule ligne existe en base. La zone brute permet de le montrer, ce qui n'était pas possible en J1 où le doublon disparaissait sans trace.
+
+Mesure en retard : état courant à 07:52:43 avant l'incident, 07:52:53 après, donc il a avancé. La mesure injectée est dans l'historique avec `recorded_at` 07:51:46 et `received_at` 07:52:49, soit 63 secondes d'écart.
+
+- Conclusion : réussi
+- Correction ou limite identifiée : une mesure en retard est acceptée dans l'historique sans limite d'ancienneté. Au-delà de 7 jours elle serait supprimée par la rétention, et son `message_id` ne protégerait plus d'un nouveau doublon
+
+### R04, capteur silencieux
+
+- Scénario et responsable : R04, Jérémy Perret
+- Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt
+- Conditions initiales et paramètres : `sensor-001` en ligne et mesurant, seuil de fraîcheur 30 secondes
+- Action effectuée : `docker compose --profile tools run --rm tools incident sensor-001 pause`
+- Résultat attendu : la mesure devient ancienne au-delà du seuil, la disponibilité reste `online`
+- Résultat observé et preuve :
+
+| Temps écoulé | `is_stale` | `availability` |
+|---|---|---|
+| 10 s | faux | `online` |
+| 25 s | faux | `online` |
+| 40 s | vrai | `online` |
+
+La bascule a lieu entre 25 et 40 secondes, ce qui encadre le seuil déclaré de 30. La disponibilité ne change pas : le capteur répond toujours au broker, il ne mesure plus. L'application affiche « Donnée ancienne » à côté de la valeur et ne parle pas du réseau du téléphone.
+
+- Conclusion : réussi
+- Correction ou limite identifiée : aucune
+
+### R05, téléphone hors ligne
+
+- Scénario et responsable : R05, Jérémy Perret
+- Version du projet et environnement : J2, application servie par Expo sur le navigateur, faute de simulateur iOS disponible sur la machine
+- Conditions initiales et paramètres : consultation réussie préalable, cache de 24 heures, seuil de fraîcheur 30 secondes
+- Action effectuée : arrêt du serveur qui sert l'API, puis rechargement complet de l'application, serveur toujours arrêté
+- Résultat attendu : le cache reste consultable, les dates sont visibles, l'état est explicite
+- Résultat observé et preuve :
+
+| Moment | Ce que l'écran affiche |
+|---|---|
+| Serveur coupé | « Serveur injoignable. Données conservées, elles ne décrivent plus la salle en direct. Reçues le 16/09 10:15, il y a 18 s » |
+| Une minute après | « il y a 1 min », puis 2, puis 3 : l'ancienneté avance |
+| Ligne Fraîcheur | « Fraîcheur inconnue, données du cache », au lieu de « Donnée récente » |
+| Après rechargement complet | Les trois salles s'affichent, avec leur date de réception |
+
+- Conclusion : partiel
+- Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. Et l'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Restent à exercer sur l'iPhone : la coupure du réseau du téléphone lui-même, et le blocage d'une commande hors ligne, qui n'est pas encore implémentée
+
+### R06, reconnexion et cycle de vie
+
+- Scénario et responsable : R06, Jérémy Perret
+- Version du projet et environnement : J2, application servie par Expo sur le navigateur
+- Conditions initiales et paramètres : application affichant le cache avec le bandeau « serveur injoignable »
+- Action effectuée : remise en marche du serveur, sans toucher à l'application
+- Résultat attendu : retour à des données cohérentes, pas de chargement infini, pas de doublon
+- Résultat observé et preuve : le bandeau disparaît et les valeurs repassent en direct. Aucun écran de chargement infini : l'état hors ligne sans cache affiche un message et un bouton Réessayer
+- Conclusion : partiel
+- Correction ou limite identifiée : le passage en arrière-plan et le retour au premier plan passent par `AppState`, qui n'existe pas dans un navigateur. Ils restent à exercer sur l'iPhone. Un défaut a été trouvé pendant ce scénario : hors ligne sans rien en cache, l'écran affichait un chargement qui ne se terminait jamais, parce qu'une requête mise en pause ne se termine pas. Corrigé par un état hors ligne distinct
+
+### R07, broker interrompu
+
+- Scénario et responsable : R07, Jérémy Perret
+- Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt
+- Conditions initiales et paramètres : chaîne complète en marche, 16 487 mesures en base
+- Action effectuée :
+
+```sh
+docker compose stop mosquitto
+docker compose up -d --wait mosquitto
+```
+
+- Résultat attendu : le backend reste diagnosticable et se reconnecte, le mobile ne présente pas les anciennes mesures comme fraîches
+- Résultat observé et preuve : pendant la coupure, `/health` répond `{"status":"ok","db":true}` et `/rooms` répond 200. Les traces montrent « reconnexion au broker » toutes les 2 secondes. Après la remise en marche, l'ingestion reprend : 15 mesures dans les 10 secondes suivantes, soit le rythme nominal des trois capteurs
+- Conclusion : réussi
+- Correction ou limite identifiée : le simulateur suspend ses mesures pendant la coupure du broker, donc rien n'est perdu. Ce n'est pas une garantie de notre backend, c'est un comportement du kit et il ne faut pas l'annoncer comme une reprise de messages manqués. Ce qui protège de notre côté, c'est la session persistante `clean: false`, qui n'a pas été mise à l'épreuve ici puisqu'il n'y avait rien à rejouer
+
+### Fiche vierge
 
 À recopier pour chaque scénario exécuté.
 

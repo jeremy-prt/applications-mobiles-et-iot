@@ -53,9 +53,19 @@ publier de fausses mesures ni déclencher d'incidents.
 | Dernier état | Une ligne par objet, écrasée | Tant que l'objet existe |
 | Commandes | Qui a demandé quoi, quand, et le résultat | Conservées, elles servent de trace |
 | Utilisateurs | Identifiant de connexion et mot de passe haché | Tant que le compte existe |
+| Messages bruts | Le message MQTT tel qu'il est arrivé, dans MongoDB | 7 jours, supprimés par un index TTL |
+| Cache du téléphone | La dernière réponse de l'API, sur le disque de l'appareil | 24 heures |
 
 Aucune donnée personnelle au delà de l'identifiant de connexion. On ne stocke ni la position
 du téléphone ni d'identifiant d'appareil.
+
+Le cache du téléphone est écrit en clair par AsyncStorage. Il ne contient que des mesures de
+salle, donc rien de sensible. Le jour où l'application gardera un jeton de session, celui-ci
+ira dans `expo-secure-store` et non dans ce cache.
+
+MongoDB tourne sans authentification, comme PostgreSQL. Les deux ports ne sont ouverts que sur
+`127.0.0.1`, donc joignables depuis la machine seulement. Seule l'API est exposée au réseau
+local, parce que le téléphone doit l'atteindre.
 
 ## Limites de l'environnement pédagogique
 

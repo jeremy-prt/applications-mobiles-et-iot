@@ -39,7 +39,8 @@ Repartir d'une base vide : `docker compose down -v`.
 |---|---|---|
 | API | http://localhost:3000 | Ouverte sur le réseau local, pour le téléphone |
 | Broker MQTT | 127.0.0.1:1883 | Compte `backend`, mot de passe dans `.env` |
-| PostgreSQL | 127.0.0.1:5432 | Accessible depuis cette machine seulement |
+| PostgreSQL | 127.0.0.1:5432 | Base consolidée, accessible depuis cette machine seulement |
+| MongoDB | 127.0.0.1:27017 | Zone brute, accessible depuis cette machine seulement |
 
 ## Lancer l'application mobile
 
@@ -59,14 +60,26 @@ configurer, même en changeant de réseau. Si le backend tourne sur une autre ma
 autre port, copier `mobile/.env.example` en `mobile/.env` et renseigner
 `EXPO_PUBLIC_API_URL`.
 
-## Simuler des pannes
-
-Depuis `infra/kit` :
+## Lancer les tests
 
 ```sh
-docker compose run --rm tools incident sensor-001 duplicate
-docker compose run --rm tools incident sensor-001 reset
+cd backend && npm test
+cd mobile && npm test
 ```
+
+Ils tournent sans broker, sans base et sans serveur : ils portent sur les règles de décision.
+
+## Simuler des pannes
+
+Depuis la racine du dépôt. Le service `tools` du kit est derrière un profil, d'où l'option.
+
+```sh
+docker compose --profile tools run --rm tools incident sensor-001 duplicate
+docker compose --profile tools run --rm tools incident sensor-001 reset
+```
+
+Ne pas lancer le Compose du kit directement depuis `infra/kit` : ça crée un second projet
+Docker qui échoue sur le port 1883, déjà pris par le broker en marche.
 
 Liste complète dans infra/kit/README.md, résultats attendus dans docs/recette.md.
 

@@ -71,10 +71,54 @@ Une réponse arrivant après les 15 secondes est quand même traitée et corrél
 intention utilise un nouveau `command_id`. L'état réel de la ventilation reste celui du topic
 `state`.
 
-## État au 15 septembre 2026
+## Historique d'un objet
 
-Seules `/health` et `/rooms` sont implémentées, et sans authentification. Le reste décrit le
-contrat visé.
+`GET /devices/:id/telemetry`
 
-Restent à écrire : le détail de chaque route, les corps de requête et de réponse, et la
-liste complète des codes d'erreur.
+| Paramètre | Valeurs | Défaut |
+|---|---|---|
+| `resolution` | `raw` pour les mesures reçues, `5m` pour les tranches de 5 minutes | `raw` |
+| `from`, `to` | dates ISO 8601 avec fuseau | les 24 dernières heures |
+| `limit` | 1 à 500 | 500 |
+
+```json
+{
+  "device_id": "sensor-001",
+  "resolution": "5m",
+  "from": "2026-09-15T08:00:00.000Z",
+  "to": "2026-09-16T08:00:00.000Z",
+  "limit": 72,
+  "truncated": false,
+  "points": [
+    {
+      "at": "2026-09-16T07:50:00.000Z",
+      "temperature": 21.95,
+      "co2": 2500,
+      "samples": 43,
+      "temperature_min": 21.62,
+      "temperature_max": 22.39,
+      "co2_min": 2500,
+      "co2_max": 2500
+    }
+  ]
+}
+```
+
+Les points sont rendus du plus ancien au plus récent, pour être tracés dans cet ordre. Quand
+la période contient plus de points que la limite, ce sont les plus récents qui sont rendus et
+`truncated` vaut `true` : prendre les plus anciens figerait l'écran sur une période qui ne
+bouge plus.
+
+En `raw`, les champs `samples` et les bornes valent `null` : sur une mesure reçue, il n'y a
+rien à agréger.
+
+Une limite au-delà de 500 est refusée avec un code 400, et un objet inconnu avec un 404 et le
+code `DEVICE_NOT_FOUND`.
+
+## État au 16 septembre 2026
+
+Sont implémentées : `/health`, `/rooms` et `/devices/:id/telemetry`, toutes sans
+authentification.
+
+Restent à écrire : `/auth/login`, `/rooms/:id`, `/devices/:id`, les commandes, les
+associations et les alertes, ainsi que le contrôle des droits sur l'ensemble.
