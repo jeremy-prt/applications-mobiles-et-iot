@@ -10,6 +10,7 @@ import { config } from '../config/index.ts'
 import { logger } from '../logger.ts'
 import { db } from '../db/index.ts'
 import { estAncienne } from '../domain/fraicheur.ts'
+import { lireHistorique, objetExiste } from '../db/historique.ts'
 
 const Mesure = z.object({
   device_id: z.string(),
@@ -22,6 +23,46 @@ const Mesure = z.object({
   ventilation: z.boolean().nullable(),
 })
 type Mesure = z.infer<typeof Mesure>
+
+/** Forme d'erreur unique de l'API : le mobile s'appuie sur code, jamais sur message. */
+const Erreur = z.object({
+  error: z.object({ code: z.string(), message: z.string() }),
+})
+
+/**
+ * Une lecture d'historique est toujours bornée. La limite maximale est celle
+ * déclarée dans docs/architecture.md, avant les tests de recette.
+ */
+const POINTS_MAX = 500
+const FENETRE_PAR_DEFAUT_MS = 24 * 3600 * 1000
+
+const RequeteHistorique = z.object({
+  from: z.iso.datetime({ offset: true }).optional(),
+  to: z.iso.datetime({ offset: true }).optional(),
+  resolution: z.enum(['raw', '5m']).default('raw'),
+  limit: z.coerce.number().int().min(1).max(POINTS_MAX).default(POINTS_MAX),
+})
+
+const Point = z.object({
+  at: z.string(),
+  temperature: z.number(),
+  co2: z.number(),
+  samples: z.number().nullable(),
+  temperature_min: z.number().nullable(),
+  temperature_max: z.number().nullable(),
+  co2_min: z.number().nullable(),
+  co2_max: z.number().nullable(),
+})
+
+const Historique = z.object({
+  device_id: z.string(),
+  resolution: z.enum(['raw', '5m']),
+  from: z.string(),
+  to: z.string(),
+  limit: z.number(),
+  truncated: z.boolean(),
+  points: z.array(Point),
+})
 
 const Salle = z.object({
   id: z.string(),
@@ -95,6 +136,45 @@ export function creerServeur() {
       }
 
       return { rooms: [...parSalle.values()] }
+    },
+  )
+
+  app.get(
+    '/devices/:id/telemetry',
+    {
+      schema: {
+        params: z.object({ id: z.string().min(1) }),
+        querystring: RequeteHistorique,
+        response: { 200: Historique, 404: Erreur },
+      },
+    },
+    async (requete, reponse) => {
+      const { id } = requete.params
+      const { from, to, resolution, limit } = requete.query
+
+      if (!(await objetExiste(id))) {
+        return reponse
+          .code(404)
+          .send({ error: { code: 'DEVICE_NOT_FOUND', message: 'Objet inconnu' } })
+      }
+
+      const fin = to === undefined ? new Date() : new Date(to)
+      const debut =
+        from === undefined ? new Date(fin.getTime() - FENETRE_PAR_DEFAUT_MS) : new Date(from)
+
+      const points = await lireHistorique(id, { from: debut, to: fin, limit, resolution })
+
+      return {
+        device_id: id,
+        resolution,
+        from: debut.toISOString(),
+        to: fin.toISOString(),
+        limit,
+        // Dit au mobile que la période contient plus de points que la limite,
+        // pour qu'il n'affiche pas une portion comme si c'était le tout.
+        truncated: points.length === limit,
+        points,
+      }
     },
   )
 
