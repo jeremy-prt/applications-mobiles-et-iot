@@ -15,16 +15,23 @@ Capteurs simulés  ->  Mosquitto  ->  Backend  ->  MongoDB, les messages bruts
 
 ## Lancer le projet
 
-Prérequis : Docker Desktop démarré, en conteneurs Linux sur Windows.
+Prérequis : Docker Desktop démarré.
 
 ```sh
 cp .env.example .env
-docker compose up -d --build --wait
-curl http://localhost:3000/rooms
+docker compose up -d --build
 ```
 
 Le service `migrate` passe en « Exited » juste après. C'est normal : il applique les migrations
 puis s'arrête. Si le backend tourne, c'est qu'elles ont réussi, il refuse de démarrer sinon.
+
+Laisser une dizaine de secondes au backend, puis vérifier :
+
+```sh
+curl http://localhost:3000/health
+curl http://localhost:3000/rooms
+curl "http://localhost:3000/devices/sensor-001/telemetry?resolution=5m"
+```
 
 Arrêter : `docker compose stop`. Repartir d'une base vide : `docker compose down -v`.
 
