@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router'
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
-import { Divider, Text, useTheme } from 'react-native-paper'
+import { Button, Divider, Text, useTheme } from 'react-native-paper'
 import { ErreurApi } from '@/api/client'
 import { useObjet } from '@/api/salles'
 import { useHistorique } from '@/api/telemetrie'
@@ -131,11 +131,38 @@ export default function EcranObjet() {
           <Text variant="titleSmall" style={styles.titreHistorique}>
             Historique
           </Text>
-          <Text variant="bodySmall" style={styles.sousTitre}>
-            {points.length === 0
-              ? "L'historique se remplit à mesure que le job de consolidation tourne."
-              : `${points.length} tranches de 5 minutes, de ${dateEtHeure(points[0]?.at ?? null)} à ${dateEtHeure(points[points.length - 1]?.at ?? null)}.`}
-          </Text>
+          {/* Trois raisons différentes de n'avoir aucun point, qu'il ne faut pas
+              présenter de la même façon. L'appel n'est pas encore revenu, il a
+              échoué, ou il a réussi et le job n'a pas encore produit de tranche.
+              Annoncer la troisième dans les deux premiers cas est un mensonge :
+              on l'a fait, et ça a envoyé chercher un problème de job là où
+              c'était le réseau. */}
+          {historique.isPending ? (
+            <Text variant="bodySmall" style={styles.sousTitre}>
+              Chargement de l&apos;historique.
+            </Text>
+          ) : historique.isError || historique.failureCount > 0 ? (
+            <View style={styles.sousTitre}>
+              <Text variant="bodySmall">
+                L&apos;historique n&apos;a pas pu être chargé. Les valeurs ci-dessus
+                viennent d&apos;un autre appel, elles restent valables.
+              </Text>
+              <Button
+                compact
+                mode="text"
+                onPress={() => void historique.refetch()}
+                style={styles.reessayer}
+              >
+                Réessayer
+              </Button>
+            </View>
+          ) : (
+            <Text variant="bodySmall" style={styles.sousTitre}>
+              {points.length === 0
+                ? "Aucune tranche pour ce capteur. La première apparaît au bout de 5 minutes de mesures."
+                : `${points.length} tranches de 5 minutes, de ${dateEtHeure(points[0]?.at ?? null)} à ${dateEtHeure(points[points.length - 1]?.at ?? null)}.`}
+            </Text>
+          )}
 
           <Courbe
             titre="Température"
@@ -159,4 +186,5 @@ const styles = StyleSheet.create({
   valeur: { flexShrink: 1, textAlign: 'right' },
   titreHistorique: { marginTop: 8 },
   sousTitre: { marginBottom: 12 },
+  reessayer: { alignSelf: 'flex-start', marginTop: 4 },
 })

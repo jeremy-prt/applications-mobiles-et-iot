@@ -99,6 +99,12 @@ l'onglet était caché, où le rafraîchissement périodique est suspendu de tou
 diagnostic était faux, donc le changement a été annulé. La reprise repose sur NetInfo, ce qui
 est le rôle pour lequel il a été ajouté.
 
+Elle a aussi écrit un écran d'historique qui affichait « l'historique se remplit à mesure que
+le job de consolidation tourne » dès qu'il n'y avait aucun point, sans regarder pourquoi.
+Quand l'appel échouait, l'écran désignait donc le job alors que le problème était le réseau.
+Le cas s'est produit en démonstration et a envoyé chercher au mauvais endroit. Les trois
+causes sont maintenant distinguées.
+
 Elle a aussi écrit un premier écran qui affichait « chargement » quand l'application était
 hors ligne sans rien en cache. Comme la requête est mise en pause et ne se termine jamais,
 l'écran tournait indéfiniment, ce que R06 interdit explicitement. Corrigé par un état hors
