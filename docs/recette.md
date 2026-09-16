@@ -13,7 +13,7 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 | R02 | Message invalide | à faire | | |
 | R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03 |
 | R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online` | Fiche R04 |
-| R05 | Téléphone hors ligne | partiel | Serveur coupé : les valeurs restent, datées, la fraîcheur n'est plus affirmée, le cache survit à un redémarrage. La coupure du réseau du téléphone et le blocage d'une commande restent à faire | Fiche R05 |
+| R05 | Téléphone hors ligne | réussi | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée | `docs/preuves/J2-hors-ligne.png` |
 | R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini et sans doublon d'écran. L'arrière-plan reste à exercer sur l'appareil | Fiche R06 |
 | R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07 |
 | R08 | Commande exécutée | à faire | | |
@@ -108,22 +108,25 @@ La bascule a lieu entre 25 et 40 secondes, ce qui encadre le seuil déclaré de 
 
 ### R05, téléphone hors ligne
 
-- Scénario et responsable : R05, Jérémy Perret
-- Version du projet et environnement : J2, application servie par Expo sur le navigateur, faute de simulateur iOS disponible sur la machine
-- Conditions initiales et paramètres : consultation réussie préalable, cache de 24 heures, seuil de fraîcheur 30 secondes
-- Action effectuée : arrêt du serveur qui sert l'API, puis rechargement complet de l'application, serveur toujours arrêté
+- Scénario et responsable : R05, Jérémy Perret et Kylian Patry
+- Version du projet et environnement : J2, iPhone sous Expo Go, backend et kit sur le Mac, les deux sur le même réseau
+- Conditions initiales et paramètres : consultation réussie préalable sur le détail de `sensor-001`, cache de 24 heures, seuil de fraîcheur 30 secondes
+- Action effectuée : activation du mode Avion sur le téléphone après une consultation réussie
 - Résultat attendu : le cache reste consultable, les dates sont visibles, l'état est explicite
-- Résultat observé et preuve :
+- Résultat observé et preuve : `docs/preuves/J2-hors-ligne.png`, prise à 10:40 avec le mode Avion visible dans la barre d'état.
 
-| Moment | Ce que l'écran affiche |
+| Ce que l'écran affiche | Pourquoi ça compte |
 |---|---|
-| Serveur coupé | « Serveur injoignable. Données conservées, elles ne décrivent plus la salle en direct. Reçues le 16/09 10:15, il y a 18 s » |
-| Une minute après | « il y a 1 min », puis 2, puis 3 : l'ancienneté avance |
-| Ligne Fraîcheur | « Fraîcheur inconnue, données du cache », au lieu de « Donnée récente » |
-| Après rechargement complet | Les trois salles s'affichent, avec leur date de réception |
+| « Téléphone hors ligne. Données conservées, elles ne décrivent plus la salle en direct. » | Nomme le téléphone, et non le capteur ni le serveur |
+| « Reçues le 16/09 10:39, il y a 37 s. » | La réponse est datée, et cette durée avance seule |
+| « Dernière mesure : il y a 44 s » | L'ancienneté de la mesure est distincte de celle de la réponse |
+| « Fraîcheur inconnue, données du cache » | L'écran cesse d'affirmer « Donnée récente », qui serait faux |
+| Température, CO2 et les dix tranches d'historique toujours affichés | Le cache est consultable, R05 est servi |
 
-- Conclusion : partiel
-- Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. Et l'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Restent à exercer sur l'iPhone : la coupure du réseau du téléphone lui-même, et le blocage d'une commande hors ligne, qui n'est pas encore implémentée
+La même séquence a d'abord été exercée en coupant le serveur au lieu du téléphone. Le bandeau disait alors « Serveur injoignable », et le cache survivait à un rechargement complet de l'application.
+
+- Conclusion : réussi
+- Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. Et l'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Non couvert : fermer complètement l'application puis la rouvrir sans réseau. Expo Go recharge le code depuis le serveur de développement au lancement, donc l'application ne peut pas démarrer sans réseau tant qu'on ne produit pas un build autonome. La persistance elle-même a été vérifiée autrement, par un rechargement complet serveur éteint. Le blocage d'une commande hors ligne reste à faire, les commandes ne sont pas encore implémentées
 
 ### R06, reconnexion et cycle de vie
 
@@ -133,7 +136,7 @@ La bascule a lieu entre 25 et 40 secondes, ce qui encadre le seuil déclaré de 
 - Action effectuée : remise en marche du serveur, sans toucher à l'application
 - Résultat attendu : retour à des données cohérentes, pas de chargement infini, pas de doublon
 - Résultat observé et preuve : le bandeau disparaît et les valeurs repassent en direct. Aucun écran de chargement infini : l'état hors ligne sans cache affiche un message et un bouton Réessayer
-- Conclusion : partiel
+- Conclusion : partiel, la reprise a été observée en coupant le serveur, pas le réseau du téléphone
 - Correction ou limite identifiée : le passage en arrière-plan et le retour au premier plan passent par `AppState`, qui n'existe pas dans un navigateur. Ils restent à exercer sur l'iPhone. Un défaut a été trouvé pendant ce scénario : hors ligne sans rien en cache, l'écran affichait un chargement qui ne se terminait jamais, parce qu'une requête mise en pause ne se termine pas. Corrigé par un état hors ligne distinct
 
 ### R07, broker interrompu

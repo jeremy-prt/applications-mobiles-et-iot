@@ -101,9 +101,10 @@ est le rôle pour lequel il a été ajouté.
 
 Elle a aussi écrit un écran d'historique qui affichait « l'historique se remplit à mesure que
 le job de consolidation tourne » dès qu'il n'y avait aucun point, sans regarder pourquoi.
-Quand l'appel échouait, l'écran désignait donc le job alors que le problème était le réseau.
-Le cas s'est produit en démonstration et a envoyé chercher au mauvais endroit. Les trois
-causes sont maintenant distinguées.
+Quand l'appel échouait, l'écran désignait donc le job, quelle que soit la vraie cause. Le cas
+s'est produit en démonstration : un poste faisait tourner l'ancien backend, où la route
+d'historique n'existait pas encore, et l'écran annonçait un job en train de se remplir au lieu
+d'un appel refusé. Les trois causes sont maintenant distinguées.
 
 Elle a aussi écrit un premier écran qui affichait « chargement » quand l'application était
 hors ligne sans rien en cache. Comme la requête est mise en pause et ne se termine jamais,
