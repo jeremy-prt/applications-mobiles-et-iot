@@ -14,7 +14,7 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 | R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03 |
 | R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online` | Fiche R04 |
 | R05 | Téléphone hors ligne | partiel | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée. Le blocage d'une commande hors ligne attend J3 | `docs/preuves/J2-hors-ligne.png` |
-| R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini et sans doublon d'écran. L'arrière-plan reste à exercer sur l'appareil | Fiche R06 |
+| R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini. L'arrière-plan et les abonnements dupliqués restent à exercer sur l'appareil | Fiche R06 |
 | R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07 |
 | R08 | Commande exécutée | à faire | | |
 | R09 | Commande sans réponse | à faire | | |
@@ -25,7 +25,13 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 
 ## Détail des scénarios
 
-Les commandes `incident` et `command` se lancent depuis `infra/kit`.
+Les commandes `incident` et `command` se lancent depuis la racine du dépôt. Le service `tools`
+est derrière un profil Compose, et lancer le Compose de `infra/kit` seul crée un second projet
+qui échoue sur le port 1883 déjà pris.
+
+```sh
+docker compose --profile tools run --rm tools incident sensor-001 duplicate
+```
 
 | Ref | Action | Attendu |
 |---|---|---|
@@ -49,9 +55,7 @@ Augmenter le nombre d'objets ou leur fréquence dans `infra/kit/devices.json`, p
 le contexte, le volume, le temps de réponse observé et les limites. Aucun chiffre de
 performance n'est imposé, l'objectif est de mesurer et d'expliquer.
 
-## Fiches de preuve
-
-### R01, mesure de bout en bout
+## R01, mesure de bout en bout
 
 - Scénario et responsable : R01, Jérémy Perret
 - Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt, kit non modifié
@@ -64,7 +68,7 @@ docker compose --profile tools run --rm tools watch \
 ```
 
 - Résultat attendu : le même objet et la même mesure sont identifiables à chaque étape, avec leur unité et leur date
-- Résultat observé et preuve : `message_id` `035be0d8e8664437a94696954a1475e9-44`
+- Résultat observé et preuve : le `message_id` `035be0d8e8664437a94696954a1475e9-44` se retrouve partout, avec neuf millisecondes entre l'observation et la réception. L'API rend une mesure plus récente que celle qu'on trace, car le capteur publie toutes les 2 secondes et rend toujours la dernière
 
 | Étape | Ce qu'on lit |
 |---|---|
@@ -73,21 +77,17 @@ docker compose --profile tools run --rm tools watch \
 | Base consolidée | `recorded_at` 09:04:29.466, CO2 1178, température 21,64 |
 | API `GET /rooms` | `sensor-001`, CO2 en ppm, `recorded_at` daté, `is_stale` faux |
 
-Neuf millisecondes entre l'observation et la réception. La mesure visible dans l'API est plus récente que celle qu'on trace, c'est normal : le capteur publie toutes les 2 secondes et l'API rend toujours la dernière.
-
 - Conclusion : réussi
 - Correction ou limite identifiée : aucune
 
-### R02, message invalide
+## R02, message invalide
 
 - Scénario et responsable : R02, Jérémy Perret
 - Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt
 - Conditions initiales et paramètres : `sensor-001` en ligne, 6574 mesures en base pour cet objet
 - Action effectuée : `docker compose --profile tools run --rm tools incident sensor-001 invalid`
 - Résultat attendu : le service reste disponible, la donnée invalide ne devient pas une mesure, une trace explique le rejet
-- Résultat observé et preuve : `/health` répond toujours `{"status":"ok","db":true}`. Les 5 mesures ajoutées pendant les 12 secondes d'observation sont les mesures normales du capteur, pas l'invalide.
-
-La trace du backend nomme le champ fautif :
+- Résultat observé et preuve : `/health` répond toujours `{"status":"ok","db":true}`, et les 5 mesures ajoutées pendant les 12 secondes d'observation sont les mesures normales du capteur. Le message fautif est conservé dans la zone brute avec `statut: "rejete"`, `motif: "mesure non conforme au contrat"` et son contenu d'origine, `co2.value` valant la chaîne `invalide`, là où en J1 il disparaissait après la trace. La trace du backend nomme le champ fautif.
 
 ```
 {"topic":"campus/v1/devices/sensor-001/telemetry",
@@ -96,12 +96,10 @@ La trace du backend nomme le champ fautif :
  "msg":"mesure rejetée"}
 ```
 
-Le message est en plus conservé dans la zone brute avec `statut: "rejete"`, `motif: "mesure non conforme au contrat"` et son contenu d'origine, `co2.value` valant la chaîne `invalide`. En J1 il disparaissait après la trace.
-
 - Conclusion : réussi
-- Correction ou limite identifiée : la validation a changé de place avec la nouvelle architecture. Elle était dans le consommateur MQTT, elle est maintenant dans le job de consolidation, ce qui laisse le message entrer dans la zone brute avant d'être refusé. C'est voulu : rien n'est perdu à l'ingestion
+- Correction ou limite identifiée : la validation est passée du consommateur MQTT au job de consolidation, donc le message entre dans la zone brute avant d'être refusé. C'est voulu, pour que rien ne soit perdu à l'ingestion
 
-### R03, doublon et retard
+## R03, doublon et retard
 
 - Scénario et responsable : R03, Jérémy Perret
 - Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt, kit non modifié
@@ -114,7 +112,7 @@ docker compose --profile tools run --rm tools incident sensor-001 delay
 ```
 
 - Résultat attendu : aucun doublon métier dans l'historique, et le dernier état ne recule pas
-- Résultat observé et preuve :
+- Résultat observé et preuve : le message est arrivé deux fois et une seule ligne existe en base, ce que la zone brute permet de montrer, là où en J1 le doublon disparaissait sans trace. L'état courant a avancé, de 07:52:43 avant l'incident à 07:52:53 après, et la mesure en retard est dans l'historique avec `recorded_at` 07:51:46 et `received_at` 07:52:49, soit 63 secondes d'écart
 
 ```sh
 docker compose exec mongo mongosh campus_brut --quiet --eval '
@@ -129,21 +127,17 @@ docker compose exec postgres psql -U campus -d campus -tAc \
 # 0
 ```
 
-Le message est bien arrivé deux fois, et une seule ligne existe en base. La zone brute permet de le montrer, ce qui n'était pas possible en J1 où le doublon disparaissait sans trace.
-
-Mesure en retard : état courant à 07:52:43 avant l'incident, 07:52:53 après, donc il a avancé. La mesure injectée est dans l'historique avec `recorded_at` 07:51:46 et `received_at` 07:52:49, soit 63 secondes d'écart.
-
 - Conclusion : réussi
 - Correction ou limite identifiée : une mesure en retard est acceptée dans l'historique sans limite d'ancienneté. Au-delà de 7 jours elle serait supprimée par la rétention, et son `message_id` ne protégerait plus d'un nouveau doublon
 
-### R04, capteur silencieux
+## R04, capteur silencieux
 
 - Scénario et responsable : R04, Jérémy Perret
 - Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt
 - Conditions initiales et paramètres : `sensor-001` en ligne et mesurant, seuil de fraîcheur 30 secondes
 - Action effectuée : `docker compose --profile tools run --rm tools incident sensor-001 pause`
 - Résultat attendu : la mesure devient ancienne au-delà du seuil, la disponibilité reste `online`
-- Résultat observé et preuve :
+- Résultat observé et preuve : la bascule a lieu entre 25 et 40 secondes, ce qui encadre le seuil déclaré de 30. La disponibilité ne change pas, car le capteur répond toujours au broker sans plus mesurer, et l'application affiche « Donnée ancienne » à côté de la valeur sans parler du réseau du téléphone
 
 | Temps écoulé | `is_stale` | `availability` |
 |---|---|---|
@@ -151,45 +145,32 @@ Mesure en retard : état courant à 07:52:43 avant l'incident, 07:52:53 après, 
 | 25 s | faux | `online` |
 | 40 s | vrai | `online` |
 
-La bascule a lieu entre 25 et 40 secondes, ce qui encadre le seuil déclaré de 30. La disponibilité ne change pas : le capteur répond toujours au broker, il ne mesure plus. L'application affiche « Donnée ancienne » à côté de la valeur et ne parle pas du réseau du téléphone.
-
 - Conclusion : réussi
 - Correction ou limite identifiée : aucune
 
-### R05, téléphone hors ligne
+## R05, téléphone hors ligne
 
 - Scénario et responsable : R05, Jérémy Perret et Kylian Patry
 - Version du projet et environnement : J2, iPhone sous Expo Go, backend et kit sur le Mac, les deux sur le même réseau
 - Conditions initiales et paramètres : consultation réussie préalable sur le détail de `sensor-001`, cache de 24 heures, seuil de fraîcheur 30 secondes
 - Action effectuée : activation du mode Avion sur le téléphone après une consultation réussie
 - Résultat attendu : le cache reste consultable, les dates sont visibles, l'état est explicite
-- Résultat observé et preuve : `docs/preuves/J2-hors-ligne.png`, prise à 10:40 avec le mode Avion visible dans la barre d'état.
+- Résultat observé et preuve : `docs/preuves/J2-hors-ligne.png`, prise à 10:40 avec le mode Avion visible dans la barre d'état. La température, le CO2 et les dix tranches d'historique restent affichés sous un bandeau « Téléphone hors ligne. Données conservées, elles ne décrivent plus la salle en direct. », qui nomme le téléphone et non le capteur ni le serveur. La réponse est datée, « Reçues le 16/09 10:39, il y a 37 s. », et l'ancienneté de la mesure est donnée à part, « Dernière mesure : il y a 44 s », ces durées avançant seules. L'écran affiche « Fraîcheur inconnue, données du cache » et cesse d'affirmer « Donnée récente », qui serait faux. La même séquence a d'abord été exercée en coupant le serveur au lieu du téléphone, avec le bandeau « Serveur injoignable » et un cache qui survit à un rechargement complet de l'application
+- Conclusion : partiel. Le cache est servi, mais le blocage d'une commande hors ligne fait partie de l'attendu de R05 et attend les commandes, prévues en J3
+- Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. L'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Non couvert : fermer complètement l'application puis la rouvrir sans réseau, car Expo Go recharge le code depuis le serveur de développement au lancement. La persistance a été vérifiée autrement, par un rechargement complet serveur éteint
 
-| Ce que l'écran affiche | Pourquoi ça compte |
-|---|---|
-| « Téléphone hors ligne. Données conservées, elles ne décrivent plus la salle en direct. » | Nomme le téléphone, et non le capteur ni le serveur |
-| « Reçues le 16/09 10:39, il y a 37 s. » | La réponse est datée, et cette durée avance seule |
-| « Dernière mesure : il y a 44 s » | L'ancienneté de la mesure est distincte de celle de la réponse |
-| « Fraîcheur inconnue, données du cache » | L'écran cesse d'affirmer « Donnée récente », qui serait faux |
-| Température, CO2 et les dix tranches d'historique toujours affichés | Le cache est consultable, R05 est servi |
-
-La même séquence a d'abord été exercée en coupant le serveur au lieu du téléphone. Le bandeau disait alors « Serveur injoignable », et le cache survivait à un rechargement complet de l'application.
-
-- Conclusion : partiel. La partie cache est servie, le blocage d'une commande hors ligne fait partie de l'attendu de R05 et attend les commandes, prévues en J3
-- Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. Et l'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Non couvert : fermer complètement l'application puis la rouvrir sans réseau. Expo Go recharge le code depuis le serveur de développement au lancement, donc l'application ne peut pas démarrer sans réseau tant qu'on ne produit pas un build autonome. La persistance elle-même a été vérifiée autrement, par un rechargement complet serveur éteint
-
-### R06, reconnexion et cycle de vie
+## R06, reconnexion et cycle de vie
 
 - Scénario et responsable : R06, Jérémy Perret
 - Version du projet et environnement : J2, application servie par Expo sur le navigateur
 - Conditions initiales et paramètres : application affichant le cache avec le bandeau « serveur injoignable »
 - Action effectuée : remise en marche du serveur, sans toucher à l'application
 - Résultat attendu : retour à des données cohérentes, pas de chargement infini, pas de doublon
-- Résultat observé et preuve : le bandeau disparaît et les valeurs repassent en direct. Aucun écran de chargement infini : l'état hors ligne sans cache affiche un message et un bouton Réessayer
+- Résultat observé et preuve : le bandeau disparaît et les valeurs repassent en direct, sans écran de chargement infini, car l'état hors ligne sans cache affiche un message et un bouton Réessayer
 - Conclusion : partiel, la reprise a été observée en coupant le serveur, pas le réseau du téléphone
-- Correction ou limite identifiée : le passage en arrière-plan et le retour au premier plan passent par `AppState`, qui n'existe pas dans un navigateur. Ils restent à exercer sur l'iPhone. Un défaut a été trouvé pendant ce scénario : hors ligne sans rien en cache, l'écran affichait un chargement qui ne se terminait jamais, parce qu'une requête mise en pause ne se termine pas. Corrigé par un état hors ligne distinct
+- Correction ou limite identifiée : le passage en arrière-plan et le retour au premier plan passent par `AppState`, qui n'existe pas dans un navigateur, donc ils restent à exercer sur l'iPhone. Un défaut a été trouvé pendant ce scénario : hors ligne sans rien en cache, l'écran affichait un chargement qui ne se terminait jamais, parce qu'une requête mise en pause ne se termine pas. Corrigé par un état hors ligne distinct
 
-### R07, broker interrompu
+## R07, broker interrompu
 
 - Scénario et responsable : R07, Jérémy Perret
 - Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt
@@ -202,11 +183,11 @@ docker compose up -d --wait mosquitto
 ```
 
 - Résultat attendu : le backend reste diagnosticable et se reconnecte, le mobile ne présente pas les anciennes mesures comme fraîches
-- Résultat observé et preuve : pendant la coupure, `/health` répond `{"status":"ok","db":true}` et `/rooms` répond 200. Les traces montrent « reconnexion au broker » toutes les 2 secondes. Après la remise en marche, l'ingestion reprend : 15 mesures dans les 10 secondes suivantes, soit le rythme nominal des trois capteurs
+- Résultat observé et preuve : pendant la coupure, `/health` répond `{"status":"ok","db":true}` et `/rooms` répond 200, avec « reconnexion au broker » toutes les 2 secondes dans les traces. Après la remise en marche, l'ingestion reprend avec 15 mesures dans les 10 secondes suivantes, soit le rythme nominal des trois capteurs
 - Conclusion : réussi
-- Correction ou limite identifiée : le simulateur suspend ses mesures pendant la coupure du broker, donc rien n'est perdu. Ce n'est pas une garantie de notre backend, c'est un comportement du kit et il ne faut pas l'annoncer comme une reprise de messages manqués. Ce qui protège de notre côté, c'est la session persistante `clean: false`, qui n'a pas été mise à l'épreuve ici puisqu'il n'y avait rien à rejouer
+- Correction ou limite identifiée : le simulateur suspend ses mesures pendant la coupure du broker, donc rien n'est perdu. Ce comportement vient du kit et non d'une garantie de notre backend, il ne faut pas l'annoncer comme une reprise de messages manqués. De notre côté, la protection est la session persistante `clean: false`, qui n'a pas été mise à l'épreuve ici puisqu'il n'y avait rien à rejouer
 
-### Fiche vierge
+## Fiche vierge
 
 À recopier pour chaque scénario exécuté.
 

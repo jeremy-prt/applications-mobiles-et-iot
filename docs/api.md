@@ -1,11 +1,11 @@
 # Contrat de l'API
 
-Interface entre le backend et l'application mobile. REST, JSON, UTF-8. Dates en ISO 8601
-UTC, comme dans le contrat MQTT du kit. Toutes les routes sauf la connexion attendent un
-en-tête `Authorization: Bearer <jeton>`.
+Interface entre le backend et l'application mobile. REST, JSON, UTF-8. Dates en ISO 8601 UTC,
+comme dans le contrat MQTT du kit. La cible est que toutes les routes sauf la connexion
+attendent un en-tête `Authorization: Bearer <jeton>`. Ce n'est pas encore le cas, voir l'état
+en fin de document.
 
-Une erreur renvoie toujours la même forme, et le mobile s'appuie sur `code`, jamais sur
-`message`, destiné aux humains :
+Une erreur renvoie toujours la même forme, et le mobile s'appuie sur `code`, pas sur `message`.
 
 ```json
 { "error": { "code": "DEVICE_NOT_FOUND", "message": "Objet inconnu" } }
@@ -28,8 +28,6 @@ Une erreur renvoie toujours la même forme, et le mobile s'appuie sur `code`, ja
 
 ## La forme d'une mesure
 
-Toute réponse qui contient une mesure porte les mêmes champs :
-
 ```json
 {
   "device_id": "sensor-001",
@@ -42,19 +40,16 @@ Toute réponse qui contient une mesure porte les mêmes champs :
 ```
 
 `recorded_at` est l'heure du capteur, pas celle de la réponse. `is_stale` est calculé par le
-backend à partir du seuil de fraîcheur déclaré dans `docs/architecture.md`, pour que le
-mobile n'ait pas à le recalculer avec une horloge qui peut différer. `availability` vient du
-broker et dit si l'objet est joignable, ce qui est différent de la fraîcheur.
+backend à partir du seuil de `docs/architecture.md`, pour que le mobile n'ait pas à le recalculer
+avec une horloge qui peut différer. `availability` vient du broker et dit si l'objet est
+joignable, ce qui n'est pas la fraîcheur.
 
 ## L'envoi d'une commande
 
-`POST /devices/:id/commands` ne renvoie pas le résultat de l'action, mais un identifiant de
-commande et le statut `pending`. Le mobile interroge ensuite `GET /commands/:id` jusqu'à un
-statut définitif. L'application ne doit jamais afficher « activé » tant que l'objet n'a pas
-confirmé.
-
-Nos statuts ne sont pas ceux du kit. Le simulateur répond `executed` ou `rejected` avec une
-raison, et ne répond pas du tout en mode sans réponse.
+`POST /devices/:id/commands` renvoie un identifiant de commande et le statut `pending`. Le mobile
+interroge ensuite `GET /commands/:id` jusqu'à un statut définitif. L'application n'affiche jamais
+« activé » tant que l'objet n'a pas confirmé. Nos statuts ne sont pas ceux du kit. Le simulateur
+répond `executed` ou `rejected` avec une raison, et ne répond pas du tout en mode sans réponse.
 
 | Notre statut | D'où il vient |
 |---|---|
@@ -63,13 +58,12 @@ raison, et ne répond pas du tout en mode sans réponse.
 | `rejected` | Le simulateur a répondu `rejected`, sa raison est conservée |
 | `unknown` | Rien n'est revenu dans les 15 secondes. On ne sait pas si l'action a eu lieu |
 
-Pas de statut `failed` : un échec supposerait qu'on sait que l'action n'a pas eu lieu, ce
-qui n'est jamais le cas en l'absence de réponse.
+Il n'y a pas de statut `failed`, car un échec supposerait qu'on sait que l'action n'a pas eu
+lieu. Sans réponse, on ne le sait jamais.
 
-Une réponse arrivant après les 15 secondes est quand même traitée et corrélée par son
-`command_id`. Une commande abandonnée n'est jamais rejouée automatiquement, et toute nouvelle
-intention utilise un nouveau `command_id`. L'état réel de la ventilation reste celui du topic
-`state`.
+Une réponse arrivant après les 15 secondes est traitée quand même, corrélée par son `command_id`.
+Une commande abandonnée n'est jamais rejouée, toute nouvelle intention utilise un nouveau
+`command_id`, et l'état réel de la ventilation reste celui du topic `state`.
 
 ## Historique d'un objet
 
@@ -104,21 +98,15 @@ intention utilise un nouveau `command_id`. L'état réel de la ventilation reste
 }
 ```
 
-Les points sont rendus du plus ancien au plus récent, pour être tracés dans cet ordre. Quand
-la période contient plus de points que la limite, ce sont les plus récents qui sont rendus et
-`truncated` vaut `true` : prendre les plus anciens figerait l'écran sur une période qui ne
-bouge plus.
+Les points vont du plus ancien au plus récent, pour être tracés dans cet ordre. Quand la période
+contient plus de points que la limite, ce sont les plus récents qui sont rendus et `truncated`
+vaut `true`. Prendre les plus anciens figerait l'écran sur une période qui ne bouge plus.
 
-En `raw`, les champs `samples` et les bornes valent `null` : sur une mesure reçue, il n'y a
-rien à agréger.
-
-Une limite au-delà de 500 est refusée avec un code 400, et un objet inconnu avec un 404 et le
-code `DEVICE_NOT_FOUND`.
+En `raw`, `samples` et les bornes valent `null`, car une mesure reçue n'a rien à agréger. Une
+limite au-delà de 500 est refusée avec un 400, un objet inconnu avec un 404 et `DEVICE_NOT_FOUND`.
 
 ## État au 16 septembre 2026
 
 Sont implémentées : `/health`, `/rooms` et `/devices/:id/telemetry`, toutes sans
-authentification.
-
-Restent à écrire : `/auth/login`, `/rooms/:id`, `/devices/:id`, les commandes, les
-associations et les alertes, ainsi que le contrôle des droits sur l'ensemble.
+authentification. Restent à écrire : `/auth/login`, `/rooms/:id`, `/devices/:id`, les commandes,
+les associations, les alertes, et le contrôle des droits sur l'ensemble.
