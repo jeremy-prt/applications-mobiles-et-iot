@@ -1,64 +1,43 @@
 # Campus connecté
 
-Superviser la température et le CO2 de salles de cours depuis un téléphone, et commander
-leur ventilation. Projet de M2 en applications mobiles et objets connectés.
+Superviser la température et le CO2 de salles de cours depuis un téléphone, et commander leur
+ventilation. Projet de M2 en applications mobiles et objets connectés.
 
-Les capteurs sont simulés. Le broker, le backend, la base de données et l'application
-mobile sont réels.
+Les capteurs sont simulés. Le broker, le backend, les bases et l'application sont réels.
 
 ```
-Capteurs simulés  ->  Mosquitto  ->  Backend  ->  PostgreSQL
-                                        |
-                                       API
-                                        |
-                                     Mobile
+Capteurs simulés  ->  Mosquitto  ->  Backend  ->  MongoDB, les messages bruts
+                                                       |
+                                               job toutes les 5 s
+                                                       |
+                                         PostgreSQL  ->  API  ->  Mobile
 ```
-
-`backend` : notre service. `mobile` : notre application. `infra/kit` : le kit fourni par
-l'école. `docs` : la documentation.
 
 ## Lancer le projet
 
-Prérequis : Git et Docker Desktop démarré, avec les conteneurs Linux sur Windows.
+Prérequis : Docker Desktop démarré, en conteneurs Linux sur Windows.
 
 ```sh
 cp .env.example .env
 docker compose up -d --build --wait
+curl http://localhost:3000/rooms
 ```
 
-Vérifier avec `curl http://localhost:3000/health` puis `curl http://localhost:3000/rooms`.
+Le service `migrate` passe en « Exited » juste après. C'est normal : il applique les migrations
+puis s'arrête. Si le backend tourne, c'est qu'elles ont réussi, il refuse de démarrer sinon.
 
-Le service `migrate` s'affiche en « Exited » après le lancement. Ce n'est pas une erreur :
-il applique les migrations puis s'arrête, avec le code 0. Si le backend tourne, c'est que
-les migrations ont réussi, il refuse de démarrer sinon.
-
-Arrêter : `docker compose down`, ou `docker compose stop` pour conserver les conteneurs.
-Repartir d'une base vide : `docker compose down -v`.
-
-| Service | Adresse | Remarque |
-|---|---|---|
-| API | http://localhost:3000 | Ouverte sur le réseau local, pour le téléphone |
-| Broker MQTT | 127.0.0.1:1883 | Compte `backend`, mot de passe dans `.env` |
-| PostgreSQL | 127.0.0.1:5432 | Base consolidée, accessible depuis cette machine seulement |
-| MongoDB | 127.0.0.1:27017 | Zone brute, accessible depuis cette machine seulement |
+Arrêter : `docker compose stop`. Repartir d'une base vide : `docker compose down -v`.
 
 ## Lancer l'application mobile
 
-Prérequis : Expo Go installé sur le téléphone, un compte Expo gratuit, et le téléphone sur
-le même réseau que la machine.
+Prérequis : Expo Go sur le téléphone, et le téléphone sur le même réseau que la machine.
 
 ```sh
-cd mobile
-npm install
-npx expo start
+cd mobile && npm install && npx expo start
 ```
 
-Scanner le code affiché dans le terminal avec Expo Go.
-
-L'application prend l'adresse de la machine qui fait tourner le serveur Expo, donc rien à
-configurer, même en changeant de réseau. Si le backend tourne sur une autre machine ou un
-autre port, copier `mobile/.env.example` en `mobile/.env` et renseigner
-`EXPO_PUBLIC_API_URL`.
+Scanner le code affiché dans le terminal. L'application déduit l'adresse du backend de celle du
+serveur Expo, donc rien à configurer même en changeant de réseau.
 
 ## Lancer les tests
 
@@ -67,21 +46,17 @@ cd backend && npm test
 cd mobile && npm test
 ```
 
-Ils tournent sans broker, sans base et sans serveur : ils portent sur les règles de décision.
-
 ## Simuler des pannes
 
-Depuis la racine du dépôt. Le service `tools` du kit est derrière un profil, d'où l'option.
+Depuis la racine, pas depuis `infra/kit` : le Compose du kit lancé seul crée un second projet
+Docker qui échoue sur le port 1883.
 
 ```sh
 docker compose --profile tools run --rm tools incident sensor-001 duplicate
 docker compose --profile tools run --rm tools incident sensor-001 reset
 ```
 
-Ne pas lancer le Compose du kit directement depuis `infra/kit` : ça crée un second projet
-Docker qui échoue sur le port 1883, déjà pris par le broker en marche.
-
-Liste complète dans infra/kit/README.md, résultats attendus dans docs/recette.md.
+Liste complète dans `infra/kit/README.md`, résultats attendus dans `docs/recette.md`.
 
 ## Équipe
 
