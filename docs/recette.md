@@ -13,7 +13,7 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 | R02 | Message invalide | réussi | Aucune mesure créée, le service répond toujours, et le message fautif est conservé dans la zone brute avec son motif | Fiche R02 |
 | R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03 |
 | R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online` | Fiche R04 |
-| R05 | Téléphone hors ligne | réussi | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée | `docs/preuves/J2-hors-ligne.png` |
+| R05 | Téléphone hors ligne | partiel | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée. Le blocage d'une commande hors ligne attend J3 | `docs/preuves/J2-hors-ligne.png` |
 | R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini et sans doublon d'écran. L'arrière-plan reste à exercer sur l'appareil | Fiche R06 |
 | R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07 |
 | R08 | Commande exécutée | à faire | | |
@@ -175,8 +175,8 @@ La bascule a lieu entre 25 et 40 secondes, ce qui encadre le seuil déclaré de 
 
 La même séquence a d'abord été exercée en coupant le serveur au lieu du téléphone. Le bandeau disait alors « Serveur injoignable », et le cache survivait à un rechargement complet de l'application.
 
-- Conclusion : réussi
-- Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. Et l'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Non couvert : fermer complètement l'application puis la rouvrir sans réseau. Expo Go recharge le code depuis le serveur de développement au lancement, donc l'application ne peut pas démarrer sans réseau tant qu'on ne produit pas un build autonome. La persistance elle-même a été vérifiée autrement, par un rechargement complet serveur éteint. Le blocage d'une commande hors ligne reste à faire, les commandes ne sont pas encore implémentées
+- Conclusion : partiel. La partie cache est servie, le blocage d'une commande hors ligne fait partie de l'attendu de R05 et attend les commandes, prévues en J3
+- Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. Et l'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Non couvert : fermer complètement l'application puis la rouvrir sans réseau. Expo Go recharge le code depuis le serveur de développement au lancement, donc l'application ne peut pas démarrer sans réseau tant qu'on ne produit pas un build autonome. La persistance elle-même a été vérifiée autrement, par un rechargement complet serveur éteint
 
 ### R06, reconnexion et cycle de vie
 
