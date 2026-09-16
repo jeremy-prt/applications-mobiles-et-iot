@@ -61,9 +61,8 @@ valider un message contre le contrat, écarter un doublon sur une contrainte d'u
 refuser qu'une mesure en retard remplace le dernier état connu. Ces trois règles sont du
 métier, pas du calcul.
 
-**Question ouverte, à poser au professeur.** Si seule la partie agrégat l'intéresse, l'agrégat
-continu suffirait et le job se réduirait à la validation. La question a été identifiée avant
-de coder et n'a pas encore de réponse.
+La question a été posée au professeur avant de coder. Il laisse le choix ouvert, donc le job
+explicite reste, et il se défend par ce qu'il fait en plus du calcul.
 
 ## Ce que ça coûte
 
@@ -151,6 +150,6 @@ Résultat : le message est présent deux fois dans MongoDB, avec le motif « dou
 Ce montage ne protège d'aucune panne matérielle et d'aucun arrêt du backend. Il protège d'une
 erreur dans notre traitement, et c'est tout.
 
-Ce qui nous ferait revenir en arrière : si le professeur répond que l'agrégat continu suffit,
-le job disparaît et la zone brute perd les deux tiers de son intérêt. Il resterait alors à
-décider si on la garde pour la seule capacité de rejeu.
+Ce qui nous ferait revenir en arrière : si les règles métier sortaient du job pour ne laisser
+que du calcul d'agrégat, l'agrégat continu de TimescaleDB ferait la même chose en une
+définition SQL, et le job n'aurait plus lieu d'être.
