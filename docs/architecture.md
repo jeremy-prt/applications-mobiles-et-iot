@@ -80,7 +80,8 @@ découpage par domaine a été examiné et écarté, voir
 
 Les trois écrans lisent la même réponse de `GET /rooms`, sous une seule clé de cache. Le
 détail d'une salle et celui d'un objet en sont dérivés, pas rechargés : deux écrans ne
-peuvent donc pas afficher deux valeurs différentes du même capteur.
+peuvent donc pas afficher deux valeurs différentes du même capteur. L'historique a sa propre
+clé, il change moins souvent et n'est lu que par l'écran de détail.
 
 ## Actualisation côté mobile
 

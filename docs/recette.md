@@ -9,8 +9,8 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 
 | Ref | Scénario | Statut | Résultat observé | Preuve |
 |---|---|---|---|---|
-| R01 | Mesure de bout en bout | à faire | | |
-| R02 | Message invalide | à faire | | |
+| R01 | Mesure de bout en bout | réussi | Le même `message_id` et les mêmes valeurs se retrouvent sur le broker, dans la zone brute, dans la base consolidée et dans l'API | Fiche R01 |
+| R02 | Message invalide | réussi | Aucune mesure créée, le service répond toujours, et le message fautif est conservé dans la zone brute avec son motif | Fiche R02 |
 | R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03 |
 | R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online` | Fiche R04 |
 | R05 | Téléphone hors ligne | réussi | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée | `docs/preuves/J2-hors-ligne.png` |
@@ -50,6 +50,56 @@ le contexte, le volume, le temps de réponse observé et les limites. Aucun chif
 performance n'est imposé, l'objectif est de mesurer et d'expliquer.
 
 ## Fiches de preuve
+
+### R01, mesure de bout en bout
+
+- Scénario et responsable : R01, Jérémy Perret
+- Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt, kit non modifié
+- Conditions initiales et paramètres : trois capteurs en ligne, publication toutes les 2 secondes
+- Action effectuée : lecture d'un message sur le broker, puis recherche de son `message_id` à chaque étape
+
+```sh
+docker compose --profile tools run --rm tools watch \
+  --topic "campus/v1/devices/sensor-001/telemetry" --count 1
+```
+
+- Résultat attendu : le même objet et la même mesure sont identifiables à chaque étape, avec leur unité et leur date
+- Résultat observé et preuve : `message_id` `035be0d8e8664437a94696954a1475e9-44`
+
+| Étape | Ce qu'on lit |
+|---|---|
+| Broker | `observed_at` 09:04:29.466, CO2 1178 ppm |
+| Zone brute MongoDB | `statut` traité, reçu à 09:04:29.475, CO2 1178 |
+| Base consolidée | `recorded_at` 09:04:29.466, CO2 1178, température 21,64 |
+| API `GET /rooms` | `sensor-001`, CO2 en ppm, `recorded_at` daté, `is_stale` faux |
+
+Neuf millisecondes entre l'observation et la réception. La mesure visible dans l'API est plus récente que celle qu'on trace, c'est normal : le capteur publie toutes les 2 secondes et l'API rend toujours la dernière.
+
+- Conclusion : réussi
+- Correction ou limite identifiée : aucune
+
+### R02, message invalide
+
+- Scénario et responsable : R02, Jérémy Perret
+- Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt
+- Conditions initiales et paramètres : `sensor-001` en ligne, 6574 mesures en base pour cet objet
+- Action effectuée : `docker compose --profile tools run --rm tools incident sensor-001 invalid`
+- Résultat attendu : le service reste disponible, la donnée invalide ne devient pas une mesure, une trace explique le rejet
+- Résultat observé et preuve : `/health` répond toujours `{"status":"ok","db":true}`. Les 5 mesures ajoutées pendant les 12 secondes d'observation sont les mesures normales du capteur, pas l'invalide.
+
+La trace du backend nomme le champ fautif :
+
+```
+{"topic":"campus/v1/devices/sensor-001/telemetry",
+ "issues":[{"expected":"number","code":"invalid_type","path":["co2","value"],
+            "message":"Invalid input: expected number, received string"}],
+ "msg":"mesure rejetée"}
+```
+
+Le message est en plus conservé dans la zone brute avec `statut: "rejete"`, `motif: "mesure non conforme au contrat"` et son contenu d'origine, `co2.value` valant la chaîne `invalide`. En J1 il disparaissait après la trace.
+
+- Conclusion : réussi
+- Correction ou limite identifiée : la validation a changé de place avec la nouvelle architecture. Elle était dans le consommateur MQTT, elle est maintenant dans le job de consolidation, ce qui laisse le message entrer dans la zone brute avant d'être refusé. C'est voulu : rien n'est perdu à l'ingestion
 
 ### R03, doublon et retard
 
