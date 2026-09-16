@@ -62,8 +62,8 @@ base métier. À deux sur 4 jours, ça se retournerait contre nous : deux schém
 deux jeux de migrations, et surtout la perte de la clé étrangère entre une mesure et son
 capteur, c'est à dire l'intégrité qu'on vient de défendre.
 
-**Cette section a été révisée en J2.** Une seconde base a finalement été ajoutée, à la
-demande du professeur, mais pas pour l'usage écarté ici. Elle ne prend pas les mesures
+**Cette section a été révisée en J2.** Une seconde base a finalement été ajoutée, sur conseil,
+mais pas pour l'usage écarté ici. Elle ne prend pas les mesures
 consolidées : elle prend les messages bruts avant tout traitement, et la clé étrangère entre
 une mesure et son capteur reste dans PostgreSQL. Le raisonnement ci-dessus tient donc
 toujours pour ce qu'il écartait. Voir `08-base-brute-mongodb.md`.

@@ -2,15 +2,14 @@
 
 ## Contexte
 
-Le professeur a demandé à l'oral une seconde base, en NoSQL, qui reçoit les messages des
-capteurs tels qu'ils arrivent. Un job périodique les relit, applique les règles métier et écrit
-dans PostgreSQL. L'application ne lit que PostgreSQL.
+Le Notion ne demandait qu'un seul stockage. Il nous a été conseillé d'ajouter une seconde base,
+en NoSQL, qui reçoit les messages des capteurs tels qu'ils arrivent, parce qu'une zone brute
+garde ce qui est arrivé même quand notre traitement le refuse. Un job périodique la relit,
+applique les règles métier et écrit dans PostgreSQL. L'application ne lit que PostgreSQL.
 
-Cette demande n'est pas dans le sujet écrit : les pages 01, 02, 03, 05 et 06 du Notion ne
-parlent que d'un seul stockage. Nous appliquons la consigne orale, en le disant. La décision
-`03` écartait bien une architecture à deux bases, mais un autre montage, les mesures consolidées
-dans une base séparée, ce qui cassait la clé étrangère entre une mesure et son capteur. Ici la
-seconde base est placée avant le traitement, pas après.
+La décision `03` écartait bien une architecture à deux bases, mais un autre montage : les mesures
+consolidées dans une base séparée, ce qui cassait la clé étrangère entre une mesure et son
+capteur. Ici la seconde base est placée avant le traitement, pas après.
 
 ## Options envisagées
 
@@ -25,9 +24,9 @@ dans leur ordre d'arrivée, valide, déduplique et écrit dans PostgreSQL.
 
 ## Pourquoi MongoDB et pas PostgreSQL en JSONB
 
-Le professeur a demandé de trancher par la mesure. Un million de messages ont été simulés sur
-chaque moteur, dans les mêmes conditions, à la forme exacte des messages du kit et avec
-100 objets. Le banc est dans `docs/preuves/bench-nosql/`.
+Le choix devait être tranché par la mesure et non par un comparatif lu en ligne. Un million de
+messages ont été simulés sur chaque moteur, dans les mêmes conditions, à la forme exacte des
+messages du kit et avec 100 objets. Le banc est dans `docs/preuves/bench-nosql/`.
 
 | | MongoDB 8.3 | PostgreSQL 18 en JSONB |
 |---|---|---|
@@ -48,7 +47,7 @@ d'une zone brute : garder ce qui est arrivé, y compris ce qu'on n'a pas su lire
 Un agrégat continu lit une table et écrit des agrégats. Il ne sait pas valider un message
 contre le contrat, écarter un doublon sur une contrainte d'unicité, ni refuser qu'une mesure en
 retard remplace le dernier état connu. Ces trois règles sont du métier, pas du calcul. La
-question a été posée au professeur, qui laisse le choix ouvert.
+question a été posée, et le choix nous est laissé.
 
 ## Ce que ça coûte
 

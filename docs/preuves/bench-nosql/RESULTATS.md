@@ -43,8 +43,8 @@ utilisateurs, les droits et les commandes, avec leurs clés étrangères.
 
 À notre volume réel de 1,5 message par seconde, les deux moteurs sont surdimensionnés d'un
 facteur 20 000. La mesure ne sert pas à prouver qu'on a besoin de Mongo : elle sert à
-montrer à partir de quand le choix compterait, et le professeur a demandé de trancher par la
-mesure plutôt que par un comparatif lu sur internet.
+montrer à partir de quand le choix compterait. Le choix devait être tranché par la mesure et
+non par un comparatif lu en ligne.
 
 ## Comment reproduire
 
