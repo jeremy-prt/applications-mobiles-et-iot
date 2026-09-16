@@ -20,6 +20,20 @@ export interface TelemetryTable {
   co2_ppm: number
 }
 
+export interface TelemetryBucketTable {
+  device_id: string
+  bucket_start: ColumnType<Date, Date | string, Date | string>
+  bucket_minutes: number
+  samples: number
+  temperature_avg: number
+  temperature_min: number
+  temperature_max: number
+  co2_avg: number
+  co2_min: number
+  co2_max: number
+  computed_at: Generated<Date>
+}
+
 export interface DeviceStateTable {
   device_id: string
   recorded_at: ColumnType<Date | null, Date | string | null, Date | string | null>
@@ -35,5 +49,6 @@ export interface Database {
   rooms: RoomsTable
   devices: DevicesTable
   telemetry: TelemetryTable
+  telemetry_bucket: TelemetryBucketTable
   device_state: DeviceStateTable
 }

@@ -1,12 +1,7 @@
 import mqtt, { type IClientOptions } from 'mqtt'
 import { config } from '../config/index.ts'
 import { logger } from '../logger.ts'
-import { Telemetrie, Etat, Disponibilite } from '../schemas/mqtt.ts'
-import {
-  enregistrerMesure,
-  enregistrerEtat,
-  enregistrerDisponibilite,
-} from '../db/mesures.ts'
+import { messagesBruts, type Genre, type MessageBrut } from '../db/mongo.ts'
 
 const TOPICS = {
   telemetry: 'campus/v1/devices/+/telemetry',
@@ -14,99 +9,44 @@ const TOPICS = {
   availability: 'campus/v1/devices/+/availability',
 } as const
 
-/**
- * Les topics state et availability sont retained : le broker nous les livre dès
- * l'abonnement, donc avant la première mesure, à un moment où l'objet n'existe
- * pas encore dans notre base. On les garde de côté et on les applique dès que
- * l'objet apparaît. Sans ça, la ventilation et la disponibilité resteraient
- * vides jusqu'au prochain changement d'état.
- */
-const enAttente = new Map<string, { etat?: Etat; disponibilite?: Disponibilite }>()
-
-async function appliquerEnAttente(deviceId: string): Promise<void> {
-  const attente = enAttente.get(deviceId)
-  if (attente === undefined) return
-  enAttente.delete(deviceId)
-  if (attente.etat !== undefined) await enregistrerEtat(attente.etat)
-  if (attente.disponibilite !== undefined) {
-    await enregistrerDisponibilite(attente.disponibilite)
-  }
-}
-
-/** Extrait l'identifiant de l'objet du topic, pour le comparer au message. */
+/** Extrait l'identifiant de l'objet du topic. Le corps du message n'est pas lu ici. */
 function deviceIdDuTopic(topic: string): string | null {
   const parts = topic.split('/')
   return parts.length === 5 ? (parts[3] ?? null) : null
 }
 
-async function traiter(topic: string, payload: Buffer): Promise<void> {
-  let brut: unknown
+function genreDuTopic(topic: string): Genre {
+  if (topic.endsWith('/telemetry')) return 'telemetry'
+  if (topic.endsWith('/state')) return 'state'
+  if (topic.endsWith('/availability')) return 'availability'
+  return 'inconnu'
+}
+
+/**
+ * Écrit le message tel qu'il arrive. Rien n'est validé ni calculé ici : c'est
+ * le rôle du job de consolidation. Un message illisible est gardé sous forme de
+ * texte plutôt que jeté, sinon on ne pourrait pas expliquer après coup ce que
+ * le capteur avait envoyé.
+ */
+async function ecrireBrut(topic: string, payload: Buffer): Promise<void> {
+  const texte = payload.toString('utf8')
+
+  const document: MessageBrut = {
+    topic,
+    device_id: deviceIdDuTopic(topic),
+    genre: genreDuTopic(topic),
+    received_at: new Date(),
+    statut: 'en_attente',
+    essais: 0,
+  }
+
   try {
-    brut = JSON.parse(payload.toString('utf8'))
+    document.payload = JSON.parse(texte)
   } catch {
-    logger.warn({ topic }, 'message MQTT illisible, JSON invalide')
-    return
+    document.texte = texte
   }
 
-  const attendu = deviceIdDuTopic(topic)
-
-  if (topic.endsWith('/telemetry')) {
-    const parsed = Telemetrie.safeParse(brut)
-    if (!parsed.success) {
-      logger.warn({ topic, issues: parsed.error.issues }, 'mesure rejetée')
-      return
-    }
-    // Le contrat demande de vérifier que l'objet du topic et celui du message
-    // sont le même.
-    if (attendu !== null && attendu !== parsed.data.device_id) {
-      logger.warn(
-        { topic, device_id: parsed.data.device_id },
-        'mesure rejetée, identifiant du topic et du message différents',
-      )
-      return
-    }
-    const res = await enregistrerMesure(parsed.data)
-    await appliquerEnAttente(parsed.data.device_id)
-    logger.debug(
-      {
-        device_id: parsed.data.device_id,
-        message_id: parsed.data.message_id,
-        doublon: res.doublon,
-        etat_mis_a_jour: res.etatCourantMisAJour,
-      },
-      res.doublon ? 'doublon écarté' : 'mesure enregistrée',
-    )
-    return
-  }
-
-  if (topic.endsWith('/state')) {
-    const parsed = Etat.safeParse(brut)
-    if (!parsed.success) {
-      logger.warn({ topic, issues: parsed.error.issues }, 'état rejeté')
-      return
-    }
-    const applique = await enregistrerEtat(parsed.data)
-    if (!applique) {
-      const attente = enAttente.get(parsed.data.device_id) ?? {}
-      attente.etat = parsed.data
-      enAttente.set(parsed.data.device_id, attente)
-    }
-    return
-  }
-
-  if (topic.endsWith('/availability')) {
-    const parsed = Disponibilite.safeParse(brut)
-    if (!parsed.success) {
-      logger.warn({ topic, issues: parsed.error.issues }, 'disponibilité rejetée')
-      return
-    }
-    const applique = await enregistrerDisponibilite(parsed.data)
-    if (!applique) {
-      const attente = enAttente.get(parsed.data.device_id) ?? {}
-      attente.disponibilite = parsed.data
-      enAttente.set(parsed.data.device_id, attente)
-    }
-  }
+  await messagesBruts().insertOne(document)
 }
 
 export async function demarrerMqtt() {
@@ -146,8 +86,8 @@ export async function demarrerMqtt() {
 
   // Une exception non attrapée ici tuerait le process, et donc l'API avec.
   client.on('message', (topic, payload) => {
-    traiter(topic, payload).catch((err) =>
-      logger.error({ err, topic }, 'échec du traitement du message'),
+    ecrireBrut(topic, payload).catch((err) =>
+      logger.error({ err, topic }, 'échec de l écriture du message brut'),
     )
   })
 

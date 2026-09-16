@@ -44,6 +44,24 @@ services:
       retries: 12
       start_period: 30s
 
+  mongo:
+    <<: *durcissement
+    # Zone brute : le consommateur MQTT y écrit le message tel qu'il arrive.
+    # Choisi par la mesure, voir docs/decisions/08-base-brute-mongodb.md.
+    image: mongo:8.3.11@sha256:5d7043a4ffe02b9ed1b6e0bab057546981af5ca0a79107e9c461e49bc44c0a7b
+    restart: unless-stopped
+    ports:
+      # Lié à 127.0.0.1 : seule l'API a besoin d'être joignable du réseau local.
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   migrate:
     <<: *durcissement
     build:
@@ -67,6 +85,8 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-campus}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-campus}
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: ${MONGO_DB:-campus_brut}
       MQTT_URL: mqtt://mosquitto:1883
       MQTT_USERNAME: backend
       MQTT_PASSWORD: ${BACKEND_PASSWORD:-backend-demo}
@@ -75,6 +95,9 @@ services:
       STALE_AFTER_SECONDS: 30
       CO2_ALERT_ON_PPM: 1000
       CO2_ALERT_OFF_PPM: 800
+      CONSOLIDATION_INTERVAL_MS: 5000
+      RAW_RETENTION_DAYS: 7
+      AGGREGATE_BUCKET_MINUTES: 5
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       # Sans adresse : le téléphone doit joindre l'API depuis le réseau local.
@@ -85,6 +108,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mongo:
+        condition: service_healthy
       mosquitto:
         condition: service_healthy
       migrate:
@@ -92,3 +117,4 @@ services:
 
 volumes:
   postgres-data:
+  mongo-data:
