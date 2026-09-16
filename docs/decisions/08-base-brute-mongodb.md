@@ -32,7 +32,7 @@ dans leur ordre d'arrivée, valide, déduplique et écrit dans PostgreSQL.
 
 Le professeur a demandé de trancher par la mesure et non par un comparatif lu sur internet.
 Un million de messages ont été simulés sur chaque moteur, dans les mêmes conditions, avec la
-forme exacte des messages du kit et 100 objets. Le banc est dans `notes/bench-nosql/`.
+forme exacte des messages du kit et 100 objets. Le banc est dans `docs/preuves/bench-nosql/`.
 
 | | MongoDB 8.3 | PostgreSQL 18 en JSONB |
 |---|---|---|

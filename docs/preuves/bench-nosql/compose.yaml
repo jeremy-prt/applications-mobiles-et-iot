@@ -1,0 +1,29 @@
+services:
+  mongo:
+    image: mongo:8.3.11
+    ports: ["127.0.0.1:27018:27017"]
+    command: ["--wiredTigerCacheSizeGB", "1"]
+    volumes: [mongo-data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  postgres:
+    image: timescale/timescaledb:2.30.0-pg18
+    environment:
+      POSTGRES_DB: bench
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+    ports: ["127.0.0.1:55433:5432"]
+    volumes: [pg-data:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d bench"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  mongo-data:
+  pg-data:
