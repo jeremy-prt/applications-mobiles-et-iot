@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native'
 import { Card, Chip, Text } from 'react-native-paper'
 import type { Objet } from '@/api/schemas'
 import { depuis } from '@/lib/dates'
+import { fraicheurAffichee, libelleFraicheur } from '@/lib/fraicheur'
 
 /**
  * Le résumé d'un capteur dans la liste d'une salle.
@@ -9,7 +10,21 @@ import { depuis } from '@/lib/dates'
  * Le composant ne connaît pas les routes : c'est l'écran qui décide où mène
  * l'appui. Seul `src/app/` sait naviguer.
  */
-export function CarteObjet({ objet, onPress }: { objet: Objet; onPress?: () => void }) {
+export function CarteObjet({
+  objet,
+  ageReponseMs,
+  maintenant,
+  onPress,
+}: {
+  objet: Objet
+  /** Âge de la réponse qui porte cette mesure, pour ne pas la dire fraîche à tort. */
+  ageReponseMs: number
+  /** Horloge qui redessine l'écran, sinon l'ancienneté affichée se fige. */
+  maintenant: number
+  onPress?: () => void
+}) {
+  const fraicheur = fraicheurAffichee(objet.is_stale, ageReponseMs)
+
   return (
     <Card style={styles.carte} mode="outlined" onPress={onPress}>
       <Card.Title
@@ -41,14 +56,15 @@ export function CarteObjet({ objet, onPress }: { objet: Objet; onPress?: () => v
             </View>
 
             <View style={styles.pastilles}>
-              <Text variant="bodySmall">Mesure {depuis(objet.recorded_at)}</Text>
-              {/* L'ancienneté est décidée par le backend : l'horloge du
-                  téléphone peut différer de la sienne. */}
-              {objet.is_stale ? (
+              <Text variant="bodySmall">Mesure {depuis(objet.recorded_at, maintenant)}</Text>
+              {/* L'ancienneté est décidée par le backend, dont l'horloge sert de
+                  référence. Mais une réponse gardée en cache fige ce verdict :
+                  au-delà du seuil, on ne prétend plus que la mesure est fraîche. */}
+              {fraicheur === 'recente' ? null : (
                 <Chip compact icon="clock-alert-outline" style={styles.pastille}>
-                  Donnée ancienne
+                  {libelleFraicheur(fraicheur)}
                 </Chip>
-              ) : null}
+              )}
             </View>
           </>
         )}

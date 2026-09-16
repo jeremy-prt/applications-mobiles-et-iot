@@ -56,6 +56,30 @@ export function EtatErreur({
   )
 }
 
+/**
+ * Hors ligne et sans rien en cache. TanStack Query met la requête en pause au
+ * lieu de l'envoyer, donc elle ne finit jamais : sans cet état, l'écran
+ * tournerait indéfiniment. Le scénario R06 l'interdit explicitement.
+ */
+export function EtatHorsLigne({ onReessayer }: { onReessayer?: () => void }) {
+  return (
+    <PleinEcran>
+      <Text variant="titleMedium" style={styles.texteCentre}>
+        Téléphone hors ligne
+      </Text>
+      <Text variant="bodySmall" style={styles.texteCentre}>
+        Aucune donnée n'a encore été reçue, il n'y a donc rien à afficher. L'écran se
+        remplira au retour du réseau.
+      </Text>
+      {onReessayer === undefined ? null : (
+        <Button mode="contained" onPress={onReessayer} style={styles.bouton}>
+          Réessayer
+        </Button>
+      )}
+    </PleinEcran>
+  )
+}
+
 /** Vide n'est pas une erreur : l'appel a réussi, il n'y a rien à montrer. */
 export function EtatVide({ titre, detail }: { titre: string; detail: string }) {
   return (

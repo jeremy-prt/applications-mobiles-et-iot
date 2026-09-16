@@ -3,8 +3,14 @@ import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { Divider, Text, useTheme } from 'react-native-paper'
 import { ErreurApi } from '@/api/client'
 import { useObjet } from '@/api/salles'
-import { EtatChargement, EtatErreur, EtatVide } from '@/components/etats'
-import { depuis } from '@/lib/dates'
+import { useHistorique } from '@/api/telemetrie'
+import { BandeauDonnees } from '@/components/bandeau'
+import { Courbe } from '@/components/courbe'
+import { EtatChargement, EtatErreur, EtatHorsLigne, EtatVide } from '@/components/etats'
+import { dateEtHeure, depuis } from '@/lib/dates'
+import { fraicheurAffichee, libelleFraicheur } from '@/lib/fraicheur'
+import { useMaintenant } from '@/lib/horloge'
+import { useEnLigne } from '@/lib/reseau'
 
 function Ligne({ libelle, valeur }: { libelle: string; valeur: string }) {
   return (
@@ -35,17 +41,25 @@ function ventilation(valeur: boolean | null): string {
   return valeur ? 'En marche' : 'À l’arrêt'
 }
 
-/** Troisième niveau du parcours : le détail d'un objet. */
+/** Troisième niveau du parcours : le détail d'un objet et son historique. */
 export default function EcranObjet() {
   const theme = useTheme()
+  const enLigne = useEnLigne()
+  const maintenant = useMaintenant()
   const { id } = useLocalSearchParams<{ id: string }>()
-  const { data, isPending, isError, error, refetch, isRefetching } = useObjet(id)
+  const { data, isPending, isError, error, refetch, isRefetching, dataUpdatedAt, fetchStatus, failureCount } = useObjet(id)
+  const historique = useHistorique(id)
+
+  if (isPending && fetchStatus === 'paused') {
+    return <EtatHorsLigne onReessayer={() => void refetch()} />
+  }
 
   if (isPending) {
     return <EtatChargement message="Chargement du capteur" />
   }
 
-  if (isError) {
+  // L'écran d'erreur ne remplace les données que lorsqu'il n'y en a aucune.
+  if (data === undefined) {
     return (
       <EtatErreur
         message={error instanceof ErreurApi ? error.message : 'Une erreur inattendue est survenue'}
@@ -59,55 +73,90 @@ export default function EcranObjet() {
   }
 
   const { objet, salle } = data
+  const points = historique.data?.points ?? []
+  const fraicheur = fraicheurAffichee(objet.is_stale, maintenant - dataUpdatedAt)
 
   return (
     <>
       <Stack.Screen options={{ title: objet.device_id }} />
-      <ScrollView
-        style={{ backgroundColor: theme.colors.background }}
-        contentContainerStyle={styles.contenu}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
-        }
-      >
-        <View style={styles.mesures}>
-          <View>
-            <Text variant="labelMedium">Température</Text>
-            <Text variant="displaySmall">
-              {objet.temperature === null
-                ? '—'
-                : `${objet.temperature.value} ${objet.temperature.unit}`}
-            </Text>
-          </View>
-          <View>
-            <Text variant="labelMedium">CO2</Text>
-            <Text variant="displaySmall">
-              {objet.co2 === null ? '—' : `${objet.co2.value} ${objet.co2.unit}`}
-            </Text>
-          </View>
-        </View>
-
-        <Divider style={styles.separateur} />
-
-        <Ligne libelle="Salle" valeur={salle.label} />
-        <Ligne libelle="Dernière mesure" valeur={depuis(objet.recorded_at)} />
-        {/* Ancienne et déconnecté sont deux problèmes distincts : un capteur
-            peut être en ligne et ne plus rien mesurer. */}
-        <Ligne
-          libelle="Fraîcheur"
-          valeur={objet.is_stale ? 'Donnée ancienne' : 'Donnée récente'}
+      <View style={[styles.ecran, { backgroundColor: theme.colors.background }]}>
+        <BandeauDonnees
+          enLigne={enLigne}
+          enPause={fetchStatus === 'paused'}
+          enEchec={failureCount > 0}
+          misAJourA={dataUpdatedAt}
+          maintenant={maintenant}
         />
-        <Ligne libelle="Disponibilité" valeur={disponibilite(objet.availability)} />
-        <Ligne libelle="Ventilation" valeur={ventilation(objet.ventilation)} />
-      </ScrollView>
+        <ScrollView
+          contentContainerStyle={styles.contenu}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={() => {
+                void refetch()
+                void historique.refetch()
+              }}
+            />
+          }
+        >
+          <View style={styles.mesures}>
+            <View>
+              <Text variant="labelMedium">Température</Text>
+              <Text variant="displaySmall">
+                {objet.temperature === null
+                  ? '—'
+                  : `${objet.temperature.value} ${objet.temperature.unit}`}
+              </Text>
+            </View>
+            <View>
+              <Text variant="labelMedium">CO2</Text>
+              <Text variant="displaySmall">
+                {objet.co2 === null ? '—' : `${objet.co2.value} ${objet.co2.unit}`}
+              </Text>
+            </View>
+          </View>
+
+          <Divider style={styles.separateur} />
+          <Ligne libelle="Salle" valeur={salle.label} />
+          <Ligne libelle="Dernière mesure" valeur={depuis(objet.recorded_at, maintenant)} />
+          {/* Ancienne et déconnecté sont deux problèmes distincts : un capteur
+              peut être en ligne et ne plus rien mesurer. Et une réponse gardée
+              en cache ne permet plus d'affirmer quoi que ce soit du capteur. */}
+          <Ligne libelle="Fraîcheur" valeur={libelleFraicheur(fraicheur)} />
+          <Ligne libelle="Disponibilité" valeur={disponibilite(objet.availability)} />
+          <Ligne libelle="Ventilation" valeur={ventilation(objet.ventilation)} />
+
+          <Divider style={styles.separateur} />
+
+          <Text variant="titleSmall" style={styles.titreHistorique}>
+            Historique
+          </Text>
+          <Text variant="bodySmall" style={styles.sousTitre}>
+            {points.length === 0
+              ? "L'historique se remplit à mesure que le job de consolidation tourne."
+              : `${points.length} tranches de 5 minutes, de ${dateEtHeure(points[0]?.at ?? null)} à ${dateEtHeure(points[points.length - 1]?.at ?? null)}.`}
+          </Text>
+
+          <Courbe
+            titre="Température"
+            unite="°C"
+            decimales={1}
+            valeurs={points.map((point) => point.temperature)}
+          />
+          <Courbe titre="CO2" unite="ppm" valeurs={points.map((point) => point.co2)} />
+        </ScrollView>
+      </View>
     </>
   )
 }
 
 const styles = StyleSheet.create({
+  ecran: { flex: 1 },
   contenu: { padding: 16 },
   mesures: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   separateur: { marginBottom: 8 },
   ligne: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, gap: 16 },
   valeur: { flexShrink: 1, textAlign: 'right' },
+  titreHistorique: { marginTop: 8 },
+  sousTitre: { marginBottom: 12 },
 })

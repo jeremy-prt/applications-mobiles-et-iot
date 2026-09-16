@@ -1,14 +1,11 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useColorScheme } from 'react-native'
 import { MD3DarkTheme, MD3LightTheme, PaperProvider } from 'react-native-paper'
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 2 },
-  },
-})
+import { queryClient, OPTIONS_PERSISTANCE } from '@/lib/persistance'
+import { brancherPremierPlan, brancherReseau } from '@/lib/reseau'
 
 /**
  * Racine de l'application : les fournisseurs communs et la pile de navigation.
@@ -21,8 +18,15 @@ export default function RacineLayout() {
   const sombre = useColorScheme() === 'dark'
   const theme = sombre ? MD3DarkTheme : MD3LightTheme
 
+  // Branché une seule fois, à la racine : deux abonnements donneraient deux
+  // rafraîchissements pour un seul retour de réseau.
+  useEffect(() => {
+    brancherReseau()
+    return brancherPremierPlan()
+  }, [])
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={OPTIONS_PERSISTANCE}>
       <PaperProvider theme={theme}>
         <StatusBar style={sombre ? 'light' : 'dark'} />
         <Stack
@@ -44,6 +48,6 @@ export default function RacineLayout() {
           <Stack.Screen name="objets/[id]" options={{ title: 'Capteur' }} />
         </Stack>
       </PaperProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   )
 }
