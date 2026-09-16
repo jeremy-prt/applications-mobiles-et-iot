@@ -104,13 +104,20 @@ export async function enregistrerEtat(message: Etat): Promise<boolean> {
 /**
  * La disponibilité dit si l'objet est joignable. C'est une information
  * différente de la fraîcheur : un objet peut être en ligne et ne plus mesurer.
+ *
+ * `recuA` sert quand le message n'a pas de date : c'est le testament publié par
+ * le broker à la place de l'objet, qui ne peut pas savoir quand il est tombé.
  */
-export async function enregistrerDisponibilite(message: Disponibilite): Promise<boolean> {
+export async function enregistrerDisponibilite(
+  message: Disponibilite,
+  recuA: Date,
+): Promise<boolean> {
   const res = await db
     .updateTable('device_state')
     .set({
       availability: message.status,
-      availability_at: new Date(message.reported_at),
+      availability_at:
+        message.reported_at === undefined ? recuA : new Date(message.reported_at),
     })
     .where('device_id', '=', message.device_id)
     .executeTakeFirst()

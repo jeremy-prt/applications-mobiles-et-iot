@@ -31,10 +31,18 @@ export const Etat = z.object({
 })
 export type Etat = z.infer<typeof Etat>
 
+/**
+ * `reported_at` est absent quand le message vient du testament du broker, celui
+ * qu'il publie à notre place quand un objet disparaît sans prévenir. Le contrat
+ * du kit le dit : « sans date de panne préremplie », c'est au backend
+ * d'horodater sa réception. L'exiger revenait à rejeter toutes les
+ * déconnexions brutales, c'est à dire le seul cas où cette information compte.
+ */
 export const Disponibilite = z.object({
   schema_version: z.literal(1),
   device_id: z.string().min(1),
   status: z.enum(['online', 'offline']),
-  reported_at: z.iso.datetime({ offset: true }),
+  reported_at: z.iso.datetime({ offset: true }).optional(),
+  reason: z.string().min(1).optional(),
 })
 export type Disponibilite = z.infer<typeof Disponibilite>

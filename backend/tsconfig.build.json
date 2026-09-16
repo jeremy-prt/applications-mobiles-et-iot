@@ -1,4 +1,7 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "noEmit": false, "sourceMap": true }
+  "compilerOptions": { "noEmit": false, "sourceMap": true },
+  // Les tests tournent sur les sources avec le lanceur de Node, ils n'ont rien
+  // à faire dans l'image.
+  "exclude": ["src/**/*.test.ts"]
 }
