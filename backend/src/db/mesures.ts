@@ -3,37 +3,20 @@ import { remplaceEtatCourant } from '../domain/fraicheur.ts'
 import type { Telemetrie, Etat, Disponibilite } from '../schemas/mqtt.ts'
 
 /**
- * Enregistre un objet et sa salle la première fois qu'on le voit.
- * Le room_id du message est une indication de départ : une fois l'objet
- * connu, c'est notre registre qui fait foi, pas le message.
+ * Dit si un objet a le droit d'écrire des mesures.
+ *
+ * Avant J3, la première mesure d'un objet inconnu le créait, ainsi que sa
+ * salle : l'identifier suffisait à l'autoriser. Le registre est maintenant la
+ * table `devices`, alimentée à l'enrôlement et non par ce qui arrive sur le
+ * broker. Voir docs/decisions/J3/13-registre-des-objets-autorises.md.
  */
-async function assurerObjet(deviceId: string, roomId: string): Promise<void> {
-  await db
-    .insertInto('rooms')
-    .values({ id: roomId, label: roomId })
-    .onConflict((oc) => oc.column('id').doNothing())
-    .execute()
-
-  await db
-    .insertInto('devices')
-    .values({ id: deviceId, room_id: roomId })
-    .onConflict((oc) => oc.column('id').doNothing())
-    .execute()
-
-  await db
-    .insertInto('device_state')
-    .values({
-      device_id: deviceId,
-      recorded_at: null,
-      received_at: null,
-      temperature_c: null,
-      co2_ppm: null,
-      ventilation: null,
-      availability: null,
-      availability_at: null,
-    })
-    .onConflict((oc) => oc.column('device_id').doNothing())
-    .execute()
+export async function objetAutorise(deviceId: string): Promise<boolean> {
+  const ligne = await db
+    .selectFrom('devices')
+    .select('autorise')
+    .where('id', '=', deviceId)
+    .executeTakeFirst()
+  return ligne?.autorise === true
 }
 
 export interface ResultatIngestion {
@@ -42,8 +25,6 @@ export interface ResultatIngestion {
 }
 
 export async function enregistrerMesure(message: Telemetrie): Promise<ResultatIngestion> {
-  await assurerObjet(message.device_id, message.room_id)
-
   const recordedAt = new Date(message.observed_at)
 
   // La contrainte d'unicité écarte le doublon. On ne teste pas son existence

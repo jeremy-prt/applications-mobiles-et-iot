@@ -8,6 +8,8 @@ import { z } from 'zod'
 import { sql } from 'kysely'
 import { config } from '../config/index.ts'
 import { logger } from '../logger.ts'
+import { mongoRepond } from '../db/mongo.ts'
+import { brokerConnecte } from '../mqtt/index.ts'
 import { db } from '../db/index.ts'
 import { estAncienne } from '../domain/fraicheur.ts'
 import { lireHistorique, objetExiste } from '../db/historique.ts'
@@ -76,17 +78,58 @@ export function creerServeur() {
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)
 
+  /**
+   * L'état réel de la chaîne, et pas seulement celui de la base.
+   *
+   * Avant, un seul `select 1` sur PostgreSQL décidait de tout : l'API
+   * répondait `ok` alors que le broker était tombé, ou que MongoDB était mort
+   * et que chaque message reçu était perdu. C'est le cas le plus trompeur,
+   * parce que l'exploitant voit un service vert pendant que plus rien n'entre.
+   *
+   * Trois états, et deux usages distincts. `ok` : tout fonctionne. `degraded` :
+   * l'API sait encore répondre avec ce qu'elle a en base, mais l'ingestion est
+   * cassée. `down` : PostgreSQL ne répond pas, il n'y a plus rien à servir.
+   *
+   * Le code HTTP sépare ces deux usages. Un orchestrateur regarde le code : 200
+   * tant que le processus peut servir, 503 quand il ne peut plus, et redémarrer
+   * ne réparerait pas un broker absent. Un exploitant lit le corps, qui dit quel
+   * composant est en cause.
+   */
+  const SanteComposants = z.object({
+    postgres: z.boolean(),
+    mongo: z.boolean(),
+    broker: z.boolean(),
+  })
   app.get(
     '/health',
-    { schema: { response: { 200: z.object({ status: z.string(), db: z.boolean() }) } } },
-    async () => {
-      let ok = true
+    {
+      schema: {
+        response: {
+          200: z.object({ status: z.string(), db: z.boolean(), composants: SanteComposants }),
+          503: z.object({ status: z.string(), db: z.boolean(), composants: SanteComposants }),
+        },
+      },
+    },
+    async (_requete, reponse) => {
+      let postgres = true
       try {
         await sql`select 1`.execute(db)
       } catch {
-        ok = false
+        postgres = false
       }
-      return { status: ok ? 'ok' : 'degraded', db: ok }
+      const composants = {
+        postgres,
+        mongo: await mongoRepond(),
+        broker: brokerConnecte(),
+      }
+
+      // L'ingestion a besoin des trois : le broker apporte les messages, Mongo
+      // les conserve, PostgreSQL reçoit le résultat consolidé.
+      const tout = composants.postgres && composants.mongo && composants.broker
+      const status = !postgres ? 'down' : tout ? 'ok' : 'degraded'
+
+      // `db` est conservé pour ne pas casser les appelants écrits en J1.
+      return reponse.code(postgres ? 200 : 503).send({ status, db: postgres, composants })
     },
   )
 

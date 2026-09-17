@@ -15,7 +15,7 @@ Une erreur renvoie toujours la même forme, et le mobile s'appuie sur `code`, pa
 
 | Méthode | Chemin | Rôle | Droit requis |
 |---|---|---|---|
-| GET | `/health` | État du service et de la base | aucun |
+| GET | `/health` | État du service, de la base, de la zone brute et du lien au broker | aucun |
 | POST | `/auth/login` | Obtenir un jeton | aucun |
 | GET | `/rooms` | Les salles avec la dernière mesure de chacune | consultation |
 | GET | `/rooms/:id` | Une salle et ses objets | consultation |

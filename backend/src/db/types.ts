@@ -6,6 +6,8 @@ export interface RoomsTable {
 }
 
 export interface DevicesTable {
+  /** Droit d'écrire des mesures, posé à l'enrôlement et jamais par un message. */
+  autorise: boolean
   id: string
   room_id: string
   first_seen_at: Generated<Date>

@@ -62,6 +62,17 @@ async function ecrireBrut(topic: string, payload: Buffer): Promise<void> {
   )
 }
 
+/**
+ * Le client courant, gardé pour que la route de santé sache si le lien au
+ * broker tient. Sans ça, `/health` répondait `ok` alors que plus aucune mesure
+ * n'entrait, ce qui est le cas le plus trompeur pour un exploitant.
+ */
+let clientCourant: mqtt.MqttClient | null = null
+
+export function brokerConnecte(): boolean {
+  return clientCourant?.connected === true
+}
+
 export async function demarrerMqtt() {
   const options: IClientOptions = {
     clientId: config.MQTT_CLIENT_ID,
@@ -77,6 +88,29 @@ export async function demarrerMqtt() {
   }
 
   const client = await mqtt.connectAsync(config.MQTT_URL, options)
+  clientCourant = client
+
+  // Le handler est posé ici, avant le moindre `await`, et pas après l'abonnement.
+  // Sur une session persistante, le broker envoie sa file dès la connexion
+  // acceptée : les messages retenus pendant notre absence arrivent donc avant
+  // que `subscribeAsync` ait répondu. Un handler posé plus loin les laisse
+  // tomber en silence, ce qui vidait la quasi totalité de la reprise.
+  // Une exception non attrapée ici tuerait le process, et donc l'API avec.
+  client.on('message', (topic, payload) => {
+    ecrireBrut(topic, payload).catch((err) =>
+      echouer(
+        {
+          eventType: 'message_recu',
+          topic,
+          deviceId: deviceIdDuTopic(topic),
+          status: 'perdu',
+          reason: 'erreur_technique',
+          erreur: String(err),
+        },
+        'échec de l écriture du message brut',
+      ),
+    )
+  })
   tracer(
     { eventType: 'broker_connecte', status: 'retabli', url: config.MQTT_URL, clean: options.clean, qos: config.MQTT_QOS },
     'connecté au broker',
@@ -106,22 +140,6 @@ export async function demarrerMqtt() {
     tracer({ eventType: 'abonnement', topic: grant.topic, qos: grant.qos }, 'abonné')
   }
 
-  // Une exception non attrapée ici tuerait le process, et donc l'API avec.
-  client.on('message', (topic, payload) => {
-    ecrireBrut(topic, payload).catch((err) =>
-      echouer(
-        {
-          eventType: 'message_recu',
-          topic,
-          deviceId: deviceIdDuTopic(topic),
-          status: 'perdu',
-          reason: 'erreur_technique',
-          erreur: String(err),
-        },
-        'échec de l écriture du message brut',
-      ),
-    )
-  })
 
   return client
 }

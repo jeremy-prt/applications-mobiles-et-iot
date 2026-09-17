@@ -69,6 +69,7 @@ export type Motif =
   | 'valeur_hors_bornes'
   | 'date_dans_l_avenir'
   | 'identite_incoherente'
+  | 'objet_non_autorise'
   | 'doublon'
   | 'topic_hors_contrat'
   | 'objet_inconnu'

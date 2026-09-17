@@ -27,9 +27,16 @@ tracer({ eventType: 'api_demarree', port: config.PORT }, 'API démarrée')
 
 async function arreter(signal: string) {
   tracer({ eventType: 'arret_demande', signal }, 'arrêt demandé')
+
+  // Le client MQTT se ferme en premier, avant le serveur HTTP et les bases.
+  // Tant qu'il est connecté, le broker lui livre les messages et les considère
+  // comme remis : ceux qui arrivent pendant qu'on s'arrête ne sont donc plus
+  // rejoués à la reconnexion. Fermer d'abord rend ces messages au broker, qui
+  // les met en file pour notre session persistante.
+  await client.endAsync()
+
   arreterConsolidation()
   await app.close()
-  await client.endAsync()
   await fermerMongo()
   await db.destroy()
   process.exit(0)

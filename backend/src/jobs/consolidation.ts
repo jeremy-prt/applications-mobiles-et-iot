@@ -9,6 +9,7 @@ import {
   enregistrerDisponibilite,
   etatsCourants,
   bootIdConnu,
+  objetAutorise,
 } from '../db/mesures.ts'
 import { recalculerTranches, purgerTranchesAnciennes } from '../db/agregats.ts'
 import { tranchesTouchees } from '../domain/agregats.ts'
@@ -123,6 +124,30 @@ async function traiterTelemetrie(
         deviceIdRevendique: parsed.data.device_id,
       },
       'mesure rejetée, identifiant du topic et du message différents',
+    )
+    compteurs.rejetes += 1
+    return
+  }
+
+  // L'objet a-t-il le droit d'écrire des mesures ? Avant J3, une télémétrie
+  // d'un objet inconnu créait l'objet et sa salle, donc identifier un capteur
+  // suffisait à l'autoriser. Le contrôle est ici, avec le reste de la
+  // validation, et pas dans le consommateur MQTT : le message doit rester
+  // consultable dans la zone brute pour qu'on puisse expliquer le refus.
+  if (!(await objetAutorise(parsed.data.device_id))) {
+    const motif = 'objet absent du registre'
+    await marquer(doc._id, 'rejete', motif)
+    alerter(
+      {
+        eventType: 'mesure_rejetee',
+        eventId: doc.event_id,
+        deviceId: parsed.data.device_id,
+        topic: doc.topic,
+        status: 'rejete',
+        reason: 'objet_non_autorise',
+        roomIdRevendique: parsed.data.room_id,
+      },
+      'mesure rejetée, objet absent du registre',
     )
     compteurs.rejetes += 1
     return
@@ -327,7 +352,7 @@ export async function consolider(): Promise<Compteurs> {
   if (docs.length === 0) return compteurs
 
   // Les tranches ne sont recalculées qu'une fois par passage, pas à chaque
-  // mesure : un lot de 150 mesures touche une ou deux tranches.
+  // mesure : un lot borné par CONSOLIDATION_BATCH touche une ou deux tranches.
   const tranchesParObjet = new Map<string, Date[]>()
 
   for (const doc of docs) {

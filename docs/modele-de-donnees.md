@@ -80,7 +80,7 @@ ci-dessus. Voir `docs/decisions/J2/08-base-brute-mongodb.md`.
 | `essais` | Nombre de passages du job qui n'ont pas pu l'appliquer |
 | `motif` | Pourquoi il a été rejeté, ou écarté comme doublon |
 
-Deux index : `(statut, received_at)` pour que le job lise les messages non traités dans leur
+Trois index : `(statut, received_at)` pour que le job lise les messages non traités dans leur
 ordre d'arrivée, et un index TTL de 7 jours sur `received_at` qui tient la rétention.
 
 Un message `state` ou `availability` arrivé avant que l'objet existe en base reste en attente

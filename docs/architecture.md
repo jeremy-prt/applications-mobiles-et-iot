@@ -80,6 +80,12 @@ par son `device_id`, présent dans le topic et dans le corps du message. Le back
 message dont les deux ne correspondent pas. Le `room_id` du message n'est qu'une affectation
 de départ, c'est notre registre qui fait foi ensuite.
 
+Le registre est la table `devices`, et sa colonne `autorise` porte le droit d'écrire des
+mesures. Elle est posée à l'enrôlement, jamais par un message entrant : une télémétrie d'un
+objet absent du registre est refusée, là où elle créait l'objet et sa salle avant J3. Identité,
+existence et autorisation sont donc trois choses distinctes, voir
+`docs/decisions/J3/13-registre-des-objets-autorises.md`.
+
 L'identité est conservée partout : MongoDB garde celle extraite du topic avec le message brut,
 PostgreSQL sépare l'historique et l'état courant par `device_id`, et chaque trace porte
 `deviceId`, `eventId` et `topic`.
@@ -114,6 +120,7 @@ d'expliquer après coup ce qu'un capteur avait envoyé.
 | Bornes physiques | Température de -40 à 85 °C, CO2 de 0 à 40000 ppm | `schemas/mqtt.ts` |
 | Date d'observation | Au plus 10 secondes dans l'avenir | `domain/fraicheur.ts` |
 | Cohérence d'identité | `device_id` du topic égal à celui du message | `jobs/consolidation.ts` |
+| Objet autorisé | `device_id` présent dans le registre et autorisé | `jobs/consolidation.ts` |
 | Doublon | Unicité de `(device_id, message_id, recorded_at)` en base | `db/mesures.ts` |
 | Antériorité | L'état courant ne recule pas | `domain/fraicheur.ts` |
 
@@ -134,6 +141,25 @@ redémarrage, le premier passage réapprend sans rien annoncer.
 
 Fraîcheur et disponibilité sont deux informations distinctes. Un capteur en pause reste
 connecté au broker, donc `availability` reste `online` pendant que `is_stale` passe à vrai.
+
+## État de santé du service
+
+`GET /health` dit ce que la chaîne fait vraiment, et pas seulement si la base répond. Trois
+composants sont interrogés, parce que l'ingestion a besoin des trois : le broker apporte les
+messages, MongoDB les conserve, PostgreSQL reçoit le résultat consolidé.
+
+| État | Ce qu'il veut dire | Code HTTP |
+|---|---|---|
+| `ok` | Les trois répondent | 200 |
+| `degraded` | L'API sert encore ce qu'elle a en base, mais l'ingestion est cassée | 200 |
+| `down` | PostgreSQL ne répond pas, il n'y a plus rien à servir | 503 |
+
+Le code HTTP et le corps ne s'adressent pas aux mêmes lecteurs. Un orchestrateur lit le code
+pour décider de redémarrer : un broker absent ne se répare pas par un redémarrage, donc il ne
+doit pas faire échouer la sonde. Un exploitant lit le corps, qui nomme le composant fautif.
+
+Avant J3, un seul `select 1` décidait de tout : l'API annonçait `ok` pendant que MongoDB était
+mort et que chaque message reçu était perdu.
 
 ## Actualisation côté mobile
 

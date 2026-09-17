@@ -84,6 +84,17 @@ export function messagesBruts(): Collection<MessageBrut> {
   return base.collection<MessageBrut>('messages')
 }
 
+/** Interroge réellement la base plutôt que de se fier à l'objet client. */
+export async function mongoRepond(): Promise<boolean> {
+  if (base === null) return false
+  try {
+    await base.command({ ping: 1 })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function fermerMongo(): Promise<void> {
   await client?.close()
   client = null
