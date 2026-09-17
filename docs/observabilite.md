@@ -40,10 +40,14 @@ Les trois services démarrent avec le projet :
 docker compose up -d --build
 ```
 
-Ouvrir <http://localhost:3001>, puis se connecter avec `admin` et la valeur de
-`GRAFANA_ADMIN_PASSWORD` (`admin` par défaut). Le tableau de bord se trouve dans
-le dossier **Campus connecté**. Loki n'est pas publié sur la machine et Grafana
-n'écoute que sur `127.0.0.1`.
+Ouvrir <http://localhost:3001>. La consultation ne demande pas de compte : le
+rôle anonyme est Viewer, donc on peut tout lire et rien modifier. Se connecter
+avec `admin` et la valeur de `GRAFANA_ADMIN_PASSWORD` sert seulement à éditer un
+tableau de bord. Loki n'est pas publié sur la machine et Grafana n'écoute que sur
+`127.0.0.1`.
+
+Un aperçu du tableau de bord est conservé dans
+`docs/preuves/J3-tableau-de-bord.png`.
 
 ## Ce que montre le tableau de bord
 

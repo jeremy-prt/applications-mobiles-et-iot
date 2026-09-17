@@ -10,7 +10,7 @@
   "editable": true,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 2,
+  "version": 4,
   "refresh": "10s",
   "time": {
     "from": "now-1h",
@@ -100,7 +100,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -174,7 +175,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -244,7 +246,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -318,7 +321,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -327,7 +331,7 @@
       "id": 14,
       "type": "timeseries",
       "title": "Mesures enregistrées, par capteur",
-      "description": "Débit d'ingestion de chaque capteur. Trois courbes à la même hauteur signifient que les trois objets sont suivis séparément et qu'aucun ne décroche. Une courbe qui tombe à zéro désigne le capteur en cause.",
+      "description": "Débit d'ingestion de chaque capteur. Trois courbes à la même hauteur signifient que les trois objets sont suivis séparément et qu'aucun ne décroche. Une courbe qui tombe à zéro désigne le capteur en cause. Chaque barre couvre une minute. Trois barres de hauteur voisine signifient que les trois capteurs suivent le même rythme.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -345,7 +349,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (deviceId) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" | deviceId=~\"$capteur\" [$__auto]))",
+          "expr": "sum by (deviceId) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" | deviceId=~\"$capteur\" [$__interval]))",
           "queryType": "range",
           "refId": "A",
           "legendFormat": "{{deviceId}}"
@@ -368,21 +372,25 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 25,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "stacking": {
               "mode": "none"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "barAlignment": 0
           },
           "color": {
             "mode": "palette-classic"
           },
-          "min": 0
+          "min": 0,
+          "noValue": "0",
+          "unit": "short"
         },
         "overrides": []
-      }
+      },
+      "interval": "1m"
     },
     {
       "id": 2,
@@ -401,7 +409,7 @@
       "id": 20,
       "type": "timeseries",
       "title": "Refus par motif",
-      "description": "Chaque refus porte un code fixe, ce qui permet de compter par cause au lieu de lire les messages un par un. json_illisible : le message n'était pas du JSON. schema_invalide : un champ manque ou n'a pas le bon type. valeur_hors_bornes : la mesure sort des capacités d'un capteur. date_dans_l_avenir : la mesure est datée trop en avance. identite_incoherente : le capteur du topic et celui du message diffèrent.",
+      "description": "Chaque refus porte un code fixe, ce qui permet de compter par cause au lieu de lire les messages un par un. json_illisible : le message n'était pas du JSON. schema_invalide : un champ manque ou n'a pas le bon type. valeur_hors_bornes : la mesure sort des capacités d'un capteur. date_dans_l_avenir : la mesure est datée trop en avance. identite_incoherente : le capteur du topic et celui du message diffèrent. Un graphique vide veut dire qu'aucun message n'a été refusé sur la période, ce qui est le cas normal.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -419,7 +427,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (reason) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_rejetee\" [$__auto]))",
+          "expr": "sum by (reason) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_rejetee\" [$__interval]))",
           "queryType": "range",
           "refId": "A",
           "legendFormat": "{{reason}}"
@@ -443,20 +451,24 @@
         "defaults": {
           "custom": {
             "drawStyle": "bars",
-            "lineWidth": 2,
-            "fillOpacity": 25,
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "stacking": {
               "mode": "normal"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "barAlignment": 0
           },
           "color": {
             "mode": "palette-classic"
           },
-          "min": 0
+          "min": 0,
+          "noValue": "0",
+          "unit": "short"
         },
         "overrides": []
-      }
+      },
+      "interval": "1m"
     },
     {
       "id": 21,
@@ -480,7 +492,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum by (status) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" [$__auto]))",
+          "expr": "sum by (status) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" [$__interval]))",
           "queryType": "range",
           "refId": "A",
           "legendFormat": "{{status}}"
@@ -504,20 +516,24 @@
         "defaults": {
           "custom": {
             "drawStyle": "bars",
-            "lineWidth": 2,
-            "fillOpacity": 25,
+            "lineWidth": 1,
+            "fillOpacity": 70,
             "stacking": {
               "mode": "normal"
             },
-            "showPoints": "never"
+            "showPoints": "never",
+            "barAlignment": 0
           },
           "color": {
             "mode": "palette-classic"
           },
-          "min": 0
+          "min": 0,
+          "noValue": "0",
+          "unit": "short"
         },
         "overrides": []
-      }
+      },
+      "interval": "1m"
     },
     {
       "id": 22,
@@ -690,7 +706,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -760,7 +777,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -834,7 +852,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -908,7 +927,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
