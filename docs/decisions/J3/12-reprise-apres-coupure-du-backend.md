@@ -46,8 +46,8 @@ n'est jamais arrivé. Cette méthode ne dépend d'aucune horloge.
 ## Vérification
 
 ```sh
-./notes/mesure-coupure.sh 30 1
-./notes/mesure-coupure.sh 30 0
+./docs/preuves/outils/mesure-coupure.sh 30 1
+./docs/preuves/outils/mesure-coupure.sh 30 0
 ```
 
 Les logs du broker confirment que la session est bien conservée, le client se reconnectant
