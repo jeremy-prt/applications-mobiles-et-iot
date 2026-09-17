@@ -25,6 +25,13 @@ export interface MessageBrut {
   /** Extrait du topic, pas du corps : c'est du routage, pas une règle métier. */
   device_id: string | null
   genre: Genre
+  /**
+   * L'identifiant de corrélation, créé à la réception. Il est écrit ici parce
+   * que la réception et le traitement sont séparés de quelques secondes et se
+   * passent dans deux endroits du code : sans lui, rien ne relierait la trace
+   * de l'arrivée du message à celle de son traitement.
+   */
+  event_id: string
   /** Le message décodé. Absent quand ce n'était pas du JSON. */
   payload?: unknown
   /** Le texte original, gardé seulement quand on n'a pas su le décoder. */
@@ -61,6 +68,9 @@ export async function connecterMongo(): Promise<Db> {
     { received_at: 1 },
     { name: 'retention', expireAfterSeconds: config.RAW_RETENTION_DAYS * 86_400 },
   )
+
+  // Le parcours d'une mesure se cherche par son identifiant de corrélation.
+  await col.createIndex({ event_id: 1 }, { name: 'correlation' })
 
   logger.info(
     { url: config.MONGO_URL, base: config.MONGO_DB },

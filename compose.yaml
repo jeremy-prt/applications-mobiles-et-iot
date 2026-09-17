@@ -91,6 +91,9 @@ services:
       MQTT_USERNAME: backend
       MQTT_PASSWORD: ${BACKEND_PASSWORD:-backend-demo}
       MQTT_CLIENT_ID: campus-backend
+      # QoS de nos abonnements MQTT. Reglable pour le scenario de comparaison
+      # QoS 0 / QoS 1 de J3, voir docs/J3.md.
+      MQTT_QOS: ${MQTT_QOS:-1}
       JWT_SECRET: ${JWT_SECRET:?copiez .env.example en .env}
       STALE_AFTER_SECONDS: 30
       CO2_ALERT_ON_PPM: 1000

@@ -57,7 +57,7 @@ MongoDB tourne sans authentification, comme PostgreSQL. Leurs ports ne sont ouve
 ## Limites de l'environnement pédagogique
 
 - Le cache des mesures est en clair dans le stockage de l'application. Quand l'application
-  gardera un jeton, en J3, il ira dans le Trousseau iOS via `expo-secure-store`.
+  gardera un jeton, il ira dans le Trousseau iOS via `expo-secure-store`.
 - Le compte MQTT du simulateur est partagé entre les trois objets, sans identité par appareil.
 - Un jeton JWT ne peut pas être révoqué avant son expiration. On compense par une durée de vie
   courte, sans mécanisme de rafraîchissement.

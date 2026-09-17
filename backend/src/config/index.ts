@@ -8,9 +8,26 @@ const Config = z.object({
   MQTT_USERNAME: z.string().default('backend'),
   MQTT_PASSWORD: z.string().min(1),
   MQTT_CLIENT_ID: z.string().default('campus-backend'),
+  // QoS de nos abonnements. En 1 le broker garde les messages publiés pendant
+  // une coupure du backend et les livre à la reconnexion, en 0 il ne garde
+  // rien. Réglable parce que le scénario QoS de J3 compare les deux. Écrit
+  // comme un choix entre deux valeurs et non comme un nombre, pour que le type
+  // obtenu soit celui qu'attend la bibliothèque MQTT.
+  MQTT_QOS: z
+    .enum(['0', '1'])
+    .default('1')
+    .transform((v) => (v === '0' ? 0 : 1)),
   PORT: z.coerce.number().default(3000),
   LOG_LEVEL: z.string().default('info'),
+  // Nom porté par le champ `service` de chaque trace. Le job de rejeu tourne
+  // dans le même conteneur que l'API, il le change pour ne pas être confondu
+  // avec elle dans les logs centralisés.
+  SERVICE_NAME: z.string().default('backend'),
   STALE_AFTER_SECONDS: z.coerce.number().default(30),
+  // Avance maximale tolérée sur la date d'observation d'une mesure. Couvre
+  // l'écart d'horloge entre le capteur et nous, sans laisser une mesure datée
+  // de l'avenir geler l'état courant.
+  FUTURE_TOLERANCE_SECONDS: z.coerce.number().default(10),
   CO2_ALERT_ON_PPM: z.coerce.number().default(1000),
   CO2_ALERT_OFF_PPM: z.coerce.number().default(800),
   // Période du job de consolidation. Doit rester très en dessous du seuil de

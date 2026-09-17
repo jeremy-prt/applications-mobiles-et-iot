@@ -128,7 +128,7 @@
       "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
       "pluginVersion": "13.2.0",
       "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum by (deviceId) (count_over_time({service_name=\"backend\"} | json | eventType=\"mqtt.telemetry.processed\" | deviceId=~\"$device_id\" [$__auto]))", "legendFormat": "{{deviceId}}", "queryType": "range", "refId": "A" }
+        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum by (deviceId) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" | deviceId=~\"$device_id\" [$__auto]))", "legendFormat": "{{deviceId}}", "queryType": "range", "refId": "A" }
       ],
       "title": "Telemetries traitees par capteur",
       "type": "timeseries"

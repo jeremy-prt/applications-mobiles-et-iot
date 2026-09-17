@@ -1,5 +1,5 @@
 import { config } from './config/index.ts'
-import { logger } from './logger.ts'
+import { logger, tracer } from './logger.ts'
 import { creerServeur } from './http/server.ts'
 import { demarrerMqtt } from './mqtt/index.ts'
 import { demarrerConsolidation } from './jobs/consolidation.ts'
@@ -23,10 +23,10 @@ const app = creerServeur()
 
 // 0.0.0.0 et pas localhost : le téléphone appelle l'API depuis le réseau local.
 await app.listen({ port: config.PORT, host: '0.0.0.0' })
-logger.info({ port: config.PORT }, 'API démarrée')
+tracer({ eventType: 'api_demarree', port: config.PORT }, 'API démarrée')
 
 async function arreter(signal: string) {
-  logger.info({ signal }, 'arrêt demandé')
+  tracer({ eventType: 'arret_demande', signal }, 'arrêt demandé')
   arreterConsolidation()
   await app.close()
   await client.endAsync()

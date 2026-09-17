@@ -10,16 +10,16 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 | Ref | Scénario | Statut | Résultat observé | Preuve |
 |---|---|---|---|---|
 | R01 | Mesure de bout en bout | réussi | Le même `message_id` et les mêmes valeurs se retrouvent sur le broker, dans la zone brute, dans la base consolidée et dans l'API | Fiche R01 |
-| R02 | Message invalide | réussi | Aucune mesure créée, le service répond toujours, et le message fautif est conservé dans la zone brute avec son motif | Fiche R02 |
-| R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03 |
-| R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online` | Fiche R04 |
-| R05 | Téléphone hors ligne | partiel | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée. Le blocage d'une commande hors ligne attend J3 | `docs/preuves/J2-hors-ligne.png` |
+| R02 | Message invalide | réussi | Aucune mesure créée, le service répond toujours, et le message fautif est conservé dans la zone brute avec son motif. Complété en J3 par le JSON illisible et la valeur impossible | Fiche R02, et `docs/J3.md` scénarios 3a à 3c |
+| R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03, et `docs/J3.md` scénarios 4 et 5 |
+| R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online`. Depuis J3 la bascule est aussi tracée | Fiche R04, et `docs/J3.md` scénario 6 |
+| R05 | Téléphone hors ligne | partiel | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée. Le blocage d'une commande hors ligne attend J4 | `docs/preuves/J2-hors-ligne.png` |
 | R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini. L'arrière-plan et les abonnements dupliqués restent à exercer sur l'appareil | Fiche R06 |
-| R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07 |
+| R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07, et `docs/J3.md` scénario 7 |
 | R08 | Commande exécutée | à faire | | |
 | R09 | Commande sans réponse | à faire | | |
-| R10 | Association et permission caméra | à faire | | |
-| R11 | Autorisation | à faire | | |
+| R10 | Association et permission caméra | à faire | Le scan de QR n'est plus planifié par aucune journée depuis la réécriture du sujet, mais reste dans le périmètre | |
+| R11 | Autorisation | à faire | Décalé : les droits ne sont plus au programme de J3 depuis la réécriture du sujet | |
 | R12 | Alerte et retour à la normale | à faire | | |
 | R13 | Reproductibilité et terminal | à faire | | |
 
@@ -51,9 +51,16 @@ docker compose --profile tools run --rm tools incident sensor-001 duplicate
 
 ## Observation complémentaire
 
-Augmenter le nombre d'objets ou leur fréquence dans `infra/kit/devices.json`, puis relever
-le contexte, le volume, le temps de réponse observé et les limites. Aucun chiffre de
-performance n'est imposé, l'objectif est de mesurer et d'expliquer.
+Faite en J3. Le kit refuse un intervalle de publication sous 0,1 seconde, donc la montée en
+charge est passée par le nombre d'objets, porté à 15 dans `infra/kit/devices.json` puis remis
+à 3. À 101 messages par seconde, le retard entre la réception d'un message et son traitement
+passe de 3 à 10 secondes, et les passages du job de consolidation s'espacent de 5 à 15
+secondes. Aucune erreur, et l'API répond toujours en 28 millisecondes. Détail et méthode dans
+`docs/J3.md`, scénario 11.
+
+Les onze scénarios de J3 ne portent pas de référence R : ils viennent de la réécriture du
+sujet et sont numérotés dans `docs/J3.md`. Les scénarios R ci-dessus restent ceux de la
+recette générale du projet.
 
 ## R01, mesure de bout en bout
 
@@ -156,7 +163,7 @@ docker compose exec postgres psql -U campus -d campus -tAc \
 - Action effectuée : activation du mode Avion sur le téléphone après une consultation réussie
 - Résultat attendu : le cache reste consultable, les dates sont visibles, l'état est explicite
 - Résultat observé et preuve : `docs/preuves/J2-hors-ligne.png`, prise à 10:40 avec le mode Avion visible dans la barre d'état. La température, le CO2 et les dix tranches d'historique restent affichés sous un bandeau « Téléphone hors ligne. Données conservées, elles ne décrivent plus la salle en direct. », qui nomme le téléphone et non le capteur ni le serveur. La réponse est datée, « Reçues le 16/09 10:39, il y a 37 s. », et l'ancienneté de la mesure est donnée à part, « Dernière mesure : il y a 44 s », ces durées avançant seules. L'écran affiche « Fraîcheur inconnue, données du cache » et cesse d'affirmer « Donnée récente », qui serait faux. La même séquence a d'abord été exercée en coupant le serveur au lieu du téléphone, avec le bandeau « Serveur injoignable » et un cache qui survit à un rechargement complet de l'application
-- Conclusion : partiel. Le cache est servi, mais le blocage d'une commande hors ligne fait partie de l'attendu de R05 et attend les commandes, prévues en J3
+- Conclusion : partiel. Le cache est servi, mais le blocage d'une commande hors ligne fait partie de l'attendu de R05 et attend les commandes, prévues en J4
 - Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. L'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Non couvert : fermer complètement l'application puis la rouvrir sans réseau, car Expo Go recharge le code depuis le serveur de développement au lancement. La persistance a été vérifiée autrement, par un rechargement complet serveur éteint
 
 ## R06, reconnexion et cycle de vie

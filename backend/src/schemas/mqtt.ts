@@ -11,14 +11,37 @@ const Mesure = z.object({
   unit: z.string().min(1),
 })
 
+/**
+ * Bornes physiques des deux grandeurs. Elles ne décrivent pas la salle mais le
+ * capteur : en dehors, l'objet ne mesure plus, il est en panne, et sa valeur ne
+ * doit pas devenir une mesure.
+ *
+ * Volontairement plus larges que le modèle du kit, qui reste entre 420 et
+ * 2500 ppm. Refuser tout ce qui sort de cette plage reviendrait à jeter les
+ * valeurs anormales mais vraies, c'est à dire exactement ce qu'un système de
+ * supervision doit signaler.
+ */
+const TEMPERATURE_MIN_C = -40
+const TEMPERATURE_MAX_C = 85
+const CO2_MIN_PPM = 0
+const CO2_MAX_PPM = 40_000
+
 export const Telemetrie = z.object({
   schema_version: z.literal(1),
   message_id: z.string().min(1),
   device_id: z.string().min(1),
   room_id: z.string().min(1),
   observed_at: z.iso.datetime({ offset: true }),
-  temperature: Mesure,
-  co2: Mesure,
+  temperature: Mesure.extend({
+    value: z
+      .number()
+      .finite()
+      .min(TEMPERATURE_MIN_C)
+      .max(TEMPERATURE_MAX_C),
+  }),
+  co2: Mesure.extend({
+    value: z.number().finite().min(CO2_MIN_PPM).max(CO2_MAX_PPM),
+  }),
 })
 export type Telemetrie = z.infer<typeof Telemetrie>
 

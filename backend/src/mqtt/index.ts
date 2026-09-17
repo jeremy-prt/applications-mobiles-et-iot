@@ -1,6 +1,6 @@
 import mqtt, { type IClientOptions } from 'mqtt'
 import { config } from '../config/index.ts'
-import { logger } from '../logger.ts'
+import { tracer, alerter, echouer, nouvelEventId } from '../logger.ts'
 import { messagesBruts, type Genre, type MessageBrut } from '../db/mongo.ts'
 
 const TOPICS = {
@@ -22,13 +22,6 @@ function genreDuTopic(topic: string): Genre {
   return 'inconnu'
 }
 
-/** Extrait l'identifiant de correlation sans faire confiance au reste du corps. */
-function eventIdDuPayload(payload: unknown): string | undefined {
-  if (typeof payload !== 'object' || payload === null) return undefined
-  const eventId = Reflect.get(payload, 'message_id')
-  return typeof eventId === 'string' ? eventId : undefined
-}
-
 /**
  * Écrit le message tel qu'il arrive. Rien n'est validé ni calculé ici : c'est
  * le rôle du job de consolidation. Un message illisible est gardé sous forme de
@@ -37,33 +30,35 @@ function eventIdDuPayload(payload: unknown): string | undefined {
  */
 async function ecrireBrut(topic: string, payload: Buffer): Promise<void> {
   const texte = payload.toString('utf8')
+  const deviceId = deviceIdDuTopic(topic)
+  const genre = genreDuTopic(topic)
+  const eventId = nouvelEventId()
 
   const document: MessageBrut = {
     topic,
-    device_id: deviceIdDuTopic(topic),
-    genre: genreDuTopic(topic),
+    device_id: deviceId,
+    genre,
+    event_id: eventId,
     received_at: new Date(),
     statut: 'en_attente',
     essais: 0,
   }
 
+  let lisible = true
   try {
     document.payload = JSON.parse(texte)
   } catch {
     document.texte = texte
+    lisible = false
   }
 
   await messagesBruts().insertOne(document)
 
-  logger.info(
-    {
-      eventType: 'mqtt.message.received',
-      deviceId: document.device_id ?? undefined,
-      eventId: eventIdDuPayload(document.payload),
-      topic,
-      status: 'stored_raw',
-    },
-    'message MQTT stocké dans la zone brute',
+  // Première trace du parcours. Elle est écrite après l'insertion, pour ne pas
+  // annoncer une réception qui n'a pas été conservée.
+  tracer(
+    { eventType: 'message_recu', eventId, deviceId, topic, genre, octets: payload.byteLength, json: lisible },
+    'message reçu',
   )
 }
 
@@ -82,16 +77,25 @@ export async function demarrerMqtt() {
   }
 
   const client = await mqtt.connectAsync(config.MQTT_URL, options)
-  logger.info({ url: config.MQTT_URL }, 'connecté au broker')
+  tracer(
+    { eventType: 'broker_connecte', status: 'retabli', url: config.MQTT_URL, clean: options.clean, qos: config.MQTT_QOS },
+    'connecté au broker',
+  )
 
-  client.on('error', (err) => logger.error({ err }, 'erreur MQTT'))
-  client.on('reconnect', () => logger.warn('reconnexion au broker'))
-  client.on('offline', () => logger.warn('broker injoignable'))
+  client.on('error', (err) =>
+    echouer({ eventType: 'broker_erreur', reason: 'erreur_technique', erreur: String(err) }, 'erreur MQTT'),
+  )
+  client.on('reconnect', () => alerter({ eventType: 'broker_reconnexion' }, 'reconnexion au broker'))
+  client.on('offline', () => alerter({ eventType: 'broker_perdu', status: 'perdu' }, 'broker injoignable'))
 
+  // Le QoS de l'abonnement est réglable : le scénario QoS de J3 compare la même
+  // coupure en 0 et en 1, et c'est ce niveau qui décide si le broker garde ou
+  // non les messages publiés pendant notre absence.
+  const qos = config.MQTT_QOS
   const grants = await client.subscribeAsync({
-    [TOPICS.telemetry]: { qos: 1 },
-    [TOPICS.state]: { qos: 1 },
-    [TOPICS.availability]: { qos: 1 },
+    [TOPICS.telemetry]: { qos },
+    [TOPICS.state]: { qos },
+    [TOPICS.availability]: { qos },
   })
 
   for (const grant of grants) {
@@ -99,13 +103,23 @@ export async function demarrerMqtt() {
     if (grant.qos === 128) {
       throw new Error(`abonnement refusé par le broker : ${grant.topic}`)
     }
-    logger.info({ topic: grant.topic, qos: grant.qos }, 'abonné')
+    tracer({ eventType: 'abonnement', topic: grant.topic, qos: grant.qos }, 'abonné')
   }
 
   // Une exception non attrapée ici tuerait le process, et donc l'API avec.
   client.on('message', (topic, payload) => {
     ecrireBrut(topic, payload).catch((err) =>
-      logger.error({ err, topic }, 'échec de l écriture du message brut'),
+      echouer(
+        {
+          eventType: 'message_recu',
+          topic,
+          deviceId: deviceIdDuTopic(topic),
+          status: 'perdu',
+          reason: 'erreur_technique',
+          erreur: String(err),
+        },
+        'échec de l écriture du message brut',
+      ),
     )
   })
 

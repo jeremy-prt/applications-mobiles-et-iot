@@ -139,3 +139,23 @@ test('un arrêt propre garde sa date et sa raison', () => {
   assert.equal(res.success, true)
   assert.equal(res.data?.reason, 'shutdown')
 })
+
+// J3, scenario 3c. Ces trois cas passaient avant la correction : le schema
+// n'exigeait qu'un nombre fini, donc -300 °C entrait en base et etait servi par
+// l'API comme une mesure fraiche.
+test('une temperature physiquement impossible est refusée', () => {
+  const message = { ...mesureValide, temperature: { value: -300, unit: '°C' } }
+  assert.equal(Telemetrie.safeParse(message).success, false)
+})
+
+test('un CO2 hors de la plage du capteur est refusé', () => {
+  const message = { ...mesureValide, co2: { value: 99999, unit: 'ppm' } }
+  assert.equal(Telemetrie.safeParse(message).success, false)
+})
+
+test('une valeur anormale mais plausible reste acceptée', () => {
+  // 3000 ppm sort du modele du kit mais reste une mesure vraie, que la
+  // supervision doit remonter et non jeter.
+  const message = { ...mesureValide, co2: { value: 3000, unit: 'ppm' } }
+  assert.equal(Telemetrie.safeParse(message).success, true)
+})

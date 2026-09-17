@@ -16,14 +16,18 @@ stdout/stderr des conteneurs -> Grafana Alloy -> Loki -> Grafana
 ## Format applicatif
 
 Le backend utilise un logger Pino unique, également transmis à Fastify. Chaque
-événement est écrit sur `stdout` sous la forme d'une seule ligne JSON. Il porte
-au minimum `level`, `time`, `service`, `environment` et `msg`, auxquels le code
-ajoute les champs du contexte (`topic`, compteurs de consolidation, requête HTTP,
-erreur, etc.). Exemple :
+événement est écrit sur `stdout` sous la forme d'une seule ligne JSON, avec les
+noms de champs imposés par le sujet : `timestamp`, `service`, `level` en toutes
+lettres, `eventType`, et selon l'événement `deviceId`, `eventId`, `topic`,
+`status` et `reason`. Exemple :
 
 ```json
-{"level":30,"time":"2026-09-17T08:13:15.543Z","service":"backend","environment":"production","traites":9,"doublons":0,"rejetes":1,"msg":"consolidation"}
+{"level":"info","timestamp":"2026-09-17T09:10:20.856Z","service":"backend","environment":"development","eventType":"mesure_enregistree","eventId":"17dfbdc2-9f09-4387-973e-24f83e6e8c23","deviceId":"sensor-003","topic":"campus/v1/devices/sensor-003/telemetry","status":"etat_courant_mis_a_jour","msg":"mesure enregistrée"}
 ```
+
+Les valeurs de `eventType` et de `reason` sont déclarées dans un type TypeScript,
+donc une faute de frappe est refusée à la compilation et ne peut pas rendre une
+ligne introuvable. La liste est dans `backend/src/logger.ts`.
 
 Il n'y a pas de fichier de logs dans le conteneur : Docker collecte directement
 `stdout`, puis Alloy transmet ces lignes à Loki. Le simulateur et Mosquitto sont

@@ -95,7 +95,9 @@ export async function enregistrerMesure(message: Telemetrie): Promise<ResultatIn
 export async function enregistrerEtat(message: Etat): Promise<boolean> {
   const res = await db
     .updateTable('device_state')
-    .set({ ventilation: message.ventilation })
+    // Le boot_id est gardé pour vérifier ensuite que les mesures viennent bien
+    // de la session que l'objet annonce, voir domain/surveillance.ts.
+    .set({ ventilation: message.ventilation, boot_id: message.boot_id })
     .where('device_id', '=', message.device_id)
     .executeTakeFirst()
   return res.numUpdatedRows > 0n
@@ -122,4 +124,30 @@ export async function enregistrerDisponibilite(
     .where('device_id', '=', message.device_id)
     .executeTakeFirst()
   return res.numUpdatedRows > 0n
+}
+
+/**
+ * La date de la dernière mesure de chaque objet. Sert à la surveillance de
+ * fraîcheur, qui doit voir tous les objets d'un coup pour repérer ceux qui se
+ * sont tus. Trois lignes ici, autant que d'objets : pas de borne nécessaire.
+ */
+export async function etatsCourants(): Promise<
+  { deviceId: string; recordedAt: Date | null }[]
+> {
+  const lignes = await db
+    .selectFrom('device_state')
+    .select(['device_id', 'recorded_at'])
+    .execute()
+
+  return lignes.map((l) => ({ deviceId: l.device_id, recordedAt: l.recorded_at }))
+}
+
+/** L'identifiant de démarrage annoncé par un objet, s'il en a déjà annoncé un. */
+export async function bootIdConnu(deviceId: string): Promise<string | null> {
+  const ligne = await db
+    .selectFrom('device_state')
+    .select('boot_id')
+    .where('device_id', '=', deviceId)
+    .executeTakeFirst()
+  return ligne?.boot_id ?? null
 }

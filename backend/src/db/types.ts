@@ -43,6 +43,8 @@ export interface DeviceStateTable {
   ventilation: boolean | null
   availability: string | null
   availability_at: ColumnType<Date | null, Date | string | null, Date | string | null>
+  /** Identifiant de démarrage annoncé sur le topic `state`. */
+  boot_id: string | null
 }
 
 export interface Database {

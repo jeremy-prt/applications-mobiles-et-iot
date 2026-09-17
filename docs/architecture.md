@@ -14,22 +14,6 @@ flowchart LR
 Le consommateur MQTT n'écrit pas dans PostgreSQL. Le pourquoi et ce que ça coûte sont dans
 `docs/decisions/J2/08-base-brute-mongodb.md`.
 
-## Identité et isolation des capteurs
-
-Les identifiants stables `sensor-001`, `sensor-002` et `sensor-003` sont déclarés
-dans `infra/kit/devices.json`. Chaque capteur utilise un client MQTT indépendant
-et publie sur `campus/v1/devices/{device_id}/...`. Le backend s'abonne avec `+`,
-extrait l'identifiant du topic et exige qu'il soit identique au champ `device_id`
-du corps avant la consolidation. Cette règle vaut pour la télémétrie, l'état et
-la disponibilité.
-
-MongoDB conserve l'identité extraite du topic avec le brut. PostgreSQL sépare
-l'historique et l'état courant par `device_id`. Les logs exposent `deviceId`,
-`eventId` et `topic`, ce qui permet de prouver l'isolation dans Grafana. Une
-incohérence topic/corps est conservée pour audit mais rejetée avant PostgreSQL.
-La décision complète est dans
-`docs/decisions/J3/10-identite-et-adressage-des-devices.md`.
-
 ## Technologies retenues
 
 | Couche | Techno | Version |
@@ -88,12 +72,74 @@ Seul `app/` connaît les routes, seul `api/` appelle le réseau. Les trois écra
 réponse de `GET /rooms` sous une seule clé de cache. Le découpage par domaine a été examiné et
 écarté, voir `docs/decisions/J1/07-architecture-de-l-application-mobile.md`.
 
+## Identité des objets et topics MQTT
+
+Les identifiants stables `sensor-001` à `sensor-003` sont déclarés dans
+`infra/kit/devices.json`, et chaque capteur a son propre client MQTT. Un objet est identifié
+par son `device_id`, présent dans le topic et dans le corps du message. Le backend refuse un
+message dont les deux ne correspondent pas. Le `room_id` du message n'est qu'une affectation
+de départ, c'est notre registre qui fait foi ensuite.
+
+L'identité est conservée partout : MongoDB garde celle extraite du topic avec le message brut,
+PostgreSQL sépare l'historique et l'état courant par `device_id`, et chaque trace porte
+`deviceId`, `eventId` et `topic`.
+
+| Topic | Sens | Retained | Ce que le backend en fait |
+|---|---|---|---|
+| `campus/v1/devices/{device_id}/telemetry` | objet vers backend | non | Mesures, écrites dans l'historique |
+| `campus/v1/devices/{device_id}/state` | objet vers backend | oui | Ventilation et `boot_id` de la session |
+| `campus/v1/devices/{device_id}/availability` | objet ou broker vers backend | oui | Objet joignable ou non |
+| `campus/v1/devices/{device_id}/commands` | backend vers objet | non | Prévu pour J4 |
+| `campus/v1/devices/{device_id}/results` | objet vers backend | non | Prévu pour J4 |
+
+Le backend s'abonne avec `+` pour couvrir tous les objets, en QoS 1 et avec une session
+persistante, pour que le broker garde les messages publiés pendant son absence. La portée
+réelle de cette protection est mesurée dans `docs/J3.md`, scénario 8.
+
+Le `message_id` d'une mesure commence par le `boot_id` que l'objet publie sur `state`. Une
+mesure dont le préfixe ne correspond pas est acceptée mais signalée : le compte MQTT étant
+partagé entre les objets du kit, c'est une détection et pas une protection. Voir
+`docs/decisions/J3/10-identite-des-objets-et-usurpation.md`.
+
+## Validation des messages
+
+Toute la validation est dans le job de consolidation, jamais dans le consommateur MQTT. Celui
+ci écrit le message tel qu'il arrive dans la zone brute, y compris illisible, ce qui permet
+d'expliquer après coup ce qu'un capteur avait envoyé.
+
+| Contrôle | Règle | Où |
+|---|---|---|
+| Message lisible | JSON valide, sinon le texte est conservé | `jobs/consolidation.ts` |
+| Structure et types | Schéma Zod du contrat du kit | `schemas/mqtt.ts` |
+| Bornes physiques | Température de -40 à 85 °C, CO2 de 0 à 40000 ppm | `schemas/mqtt.ts` |
+| Date d'observation | Au plus 10 secondes dans l'avenir | `domain/fraicheur.ts` |
+| Cohérence d'identité | `device_id` du topic égal à celui du message | `jobs/consolidation.ts` |
+| Doublon | Unicité de `(device_id, message_id, recorded_at)` en base | `db/mesures.ts` |
+| Antériorité | L'état courant ne recule pas | `domain/fraicheur.ts` |
+
+Un message refusé garde son contenu d'origine et son motif dans la zone brute, et produit une
+trace portant `eventType`, `deviceId`, `eventId` et `reason`.
+
+## Fraîcheur d'une donnée
+
+Une mesure est ancienne quand son heure d'observation dépasse le seuil de 30 secondes. Le
+calcul est fait par le backend, parce que l'horloge du téléphone peut différer, et exposé dans
+`is_stale`.
+
+Ce verdict est aussi journalisé, et seulement quand il change. Le job de consolidation compare
+à chaque passage l'état de chaque objet à celui du passage précédent, et n'écrit une ligne
+`mesure_ancienne` qu'à la bascule, dans un sens comme dans l'autre. Sans ça, rien ne permettait
+de dire à quelle heure un capteur s'était tu. Cet état est gardé en mémoire : après un
+redémarrage, le premier passage réapprend sans rien annoncer.
+
+Fraîcheur et disponibilité sont deux informations distinctes. Un capteur en pause reste
+connecté au broker, donc `availability` reste `online` pendant que `is_stale` passe à vrai.
+
 ## Actualisation côté mobile
 
-Récent veut dire une mesure de moins de 30 secondes. Le backend calcule ce verdict et le
-renvoie dans le champ `is_stale`, car l'horloge du téléphone peut différer. Une réponse gardée
-en cache fige ce champ, donc passé 30 secondes l'écran annonce « fraîcheur inconnue ». Le
-cache hors ligne est dans `docs/decisions/J2/09-cache-hors-ligne-et-fraicheur.md`.
+Une réponse gardée en cache fige le champ `is_stale`, donc passé 30 secondes l'écran annonce
+« fraîcheur inconnue » au lieu de répéter un verdict devenu faux. Le cache hors ligne est dans
+`docs/decisions/J2/09-cache-hors-ligne-et-fraicheur.md`.
 
 | Déclencheur | Comportement |
 |---|---|
@@ -112,6 +158,8 @@ Ces valeurs sont déclarées avant les tests de recette, comme le demande le suj
 
 | Paramètre | Valeur | Pourquoi cette valeur |
 |---|---|---|
+| Tolérance sur une date d'observation dans l'avenir | 10 secondes | Couvre l'écart d'horloge mesuré en J2 entre le Mac et le conteneur, 3 secondes, avec de la marge. Une mesure datée au delà passerait devant l'état courant et l'y bloquerait tout en restant annoncée fraîche |
+| Bornes acceptées pour une mesure | -40 à 85 °C, 0 à 40000 ppm | Celles d'un capteur, pas celles du modèle du kit qui reste entre 420 et 2500 ppm. Refuser tout ce qui sort du modèle jetterait les valeurs anormales mais vraies, celles qu'une supervision doit signaler |
 | Seuil de fraîcheur d'une mesure | 30 secondes | Les capteurs publient toutes les 2 secondes : 30 secondes valent 15 mesures manquées, ce n'est plus un aléa réseau. Assez long pour absorber une reconnexion du broker, assez court pour le montrer en démonstration |
 | Expiration d'une commande | 10 secondes | C'est nous qui la choisissons : le contrat impose seulement une date future, et l'outil du kit utilise 15 secondes. Passé ce délai, l'objet refuse d'exécuter |
 | Attente maximale d'une commande | 15 secondes | Plus longue que l'expiration. Abandonner avant laisserait l'objet exécuter après notre abandon, et on afficherait un échec faux |
