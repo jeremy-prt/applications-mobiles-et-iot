@@ -203,7 +203,10 @@ export function demarrerConsolidation(): () => void {
     try {
       const compteurs = await consolider()
       if (compteurs.traites > 0 || compteurs.rejetes > 0 || compteurs.doublons > 0) {
-        logger.debug(compteurs, 'consolidation')
+        // Ces compteurs sont la preuve observable de l'ingestion : ils doivent
+        // rester visibles avec le niveau info utilise par defaut, notamment
+        // pendant les scenarios de doublon et de message invalide.
+        logger.info(compteurs, 'consolidation')
       }
       await purgerTranchesAnciennes()
     } catch (err) {

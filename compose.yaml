@@ -115,6 +115,63 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Loki conserve les journaux centralises. Il n'est pas expose sur la machine :
+  # seul Grafana et Alloy y accedent par le reseau Compose.
+  loki:
+    <<: *durcissement
+    image: grafana/loki:3.7.0@sha256:c316b7c7589a5eeca843b6926c7446149d18300b79ac8538dc4ae063bc478da2
+    command: ["-config.file=/etc/loki/config.yaml"]
+    restart: unless-stopped
+    volumes:
+      - ./infra/observabilite/loki.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+
+  # Alloy decouvre les conteneurs, lit leurs sorties stdout/stderr et les
+  # transmet a Loki. Le socket est monte en lecture seule, mais son API reste
+  # un acces sensible au moteur Docker (voir docs/observabilite.md).
+  alloy:
+    <<: *durcissement
+    image: grafana/alloy:v1.12.0@sha256:85e4a706181741dd735d9a69bea81f9e03e16d5349bff46dd9640379f143c007
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-applications-mobiles-et-iot}
+    restart: unless-stopped
+    volumes:
+      - ./infra/observabilite/alloy.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      loki:
+        condition: service_started
+
+  grafana:
+    <<: *durcissement
+    image: grafana/grafana:13.2.0@sha256:3fd54ae1214669f8355f065ec9f6445d5279a3d77095ab048ca045685272429b
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      # Interface d'observation locale uniquement. L'API reste le seul service
+      # expose au telephone sur le reseau local.
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/observabilite/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observabilite/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      loki:
+        condition: service_started
+
 volumes:
   postgres-data:
   mongo-data:
+  loki-data:
+  alloy-data:
+  grafana-data:

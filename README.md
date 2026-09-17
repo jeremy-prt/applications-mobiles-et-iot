@@ -32,6 +32,12 @@ curl http://localhost:3000/rooms
 curl "http://localhost:3000/devices/sensor-001/telemetry?resolution=5m"
 ```
 
+Les logs de tous les conteneurs sont centralisés dans Grafana sur
+<http://localhost:3001>. Se connecter avec `admin` et le mot de passe
+`GRAFANA_ADMIN_PASSWORD` (`admin` par défaut), puis ouvrir le tableau de bord
+**Campus connecté - Logs**. La configuration, les panneaux et les scénarios de
+preuve sont décrits dans `docs/observabilite.md`.
+
 Le kit simule trois objets, `sensor-001` à `sensor-003`, associés aux salles 203 à 205. Seule
 l'API est exposée au réseau local, sur le port 3000, parce que le téléphone doit l'atteindre. Le
 broker MQTT (1883), PostgreSQL (5432) et MongoDB (27017) sont liés à `127.0.0.1`.

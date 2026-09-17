@@ -1,0 +1,175 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Centralisation des journaux Docker du projet Campus connecte.",
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Nombre de lignes produites par les services selectionnes sur la periode.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum(count_over_time({service_name=~\"$service\"} |~ \"$search\" [$__range]))", "instant": true, "queryType": "instant", "refId": "A" }
+      ],
+      "title": "Logs sur la periode",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Erreurs, echecs et rejets detectes dans le texte des journaux.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum(count_over_time({service_name=~\"$service\"} |~ \"(?i)(error|fatal|erreur|echec|échec|rejete|rejeté|refus)\" |~ \"$search\" [$__range]))", "instant": true, "queryType": "instant", "refId": "A" }
+      ],
+      "title": "Erreurs et rejets",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Messages explicitement ecartes comme doublons par la consolidation.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum(sum_over_time({service_name=\"backend\"} | json | unwrap doublons | __error__=\"\" [$__range]))", "instant": true, "queryType": "instant", "refId": "A" }
+      ],
+      "title": "Doublons detectes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Services ayant emis au moins une ligne sur la periode.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "count(sum by (service_name) (count_over_time({service_name=~\"$service\"}[$__range])))", "instant": true, "queryType": "instant", "refId": "A" }
+      ],
+      "title": "Services actifs",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Debit des journaux, groupe par service Docker Compose.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } }, "unit": "logs/sec" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum by (service_name) (rate({service_name=~\"$service\"} |~ \"$search\" [$__auto]))", "legendFormat": "{{service_name}}", "queryType": "range", "refId": "A" }
+      ],
+      "title": "Volume de logs par service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Frequence des lignes signalant une anomalie ou une indisponibilite.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "bars", "fillOpacity": 45, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } }, "unit": "logs/sec" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum by (service_name) (rate({service_name=~\"$service\"} |~ \"(?i)(error|fatal|erreur|echec|échec|rejete|rejeté|refus|offline|injoignable)\" [$__auto]))", "legendFormat": "{{service_name}}", "queryType": "range", "refId": "A" }
+      ],
+      "title": "Anomalies par service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Evenements utiles pour prouver la connexion MQTT, l'ingestion, les rejets et le fonctionnement du job.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 12 },
+      "id": 7,
+      "options": { "dedupStrategy": "none", "enableInfiniteScrolling": false, "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "direction": "backward", "editorMode": "code", "expr": "{service_name=\"backend\"} |~ \"(?i)(MQTT|broker|API|consolid|mesure|doublon|rejet|Mongo)\"", "queryType": "range", "refId": "A" }
+      ],
+      "title": "Parcours metier du backend",
+      "type": "logs"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Flux complet. Utiliser les variables Service et Recherche pour isoler une preuve.",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 21 },
+      "id": 8,
+      "options": { "dedupStrategy": "none", "enableInfiniteScrolling": true, "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "direction": "backward", "editorMode": "code", "expr": "{service_name=~\"$service\"} |~ \"$search\"", "queryType": "range", "refId": "A" }
+      ],
+      "title": "Tous les logs",
+      "type": "logs"
+    }
+  ],
+  "preload": false,
+  "refresh": "5s",
+  "schemaVersion": 42,
+  "tags": ["campus", "logs", "docker"],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".+",
+        "current": { "text": "Tous", "value": "$__all" },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values(service_name)",
+        "includeAll": true,
+        "label": "Service",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": { "label": "service_name", "refId": "LokiVariableQueryEditor-VariableQuery", "stream": "", "type": 1 },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "text": ".*", "value": ".*" },
+        "description": "Expression reguliere appliquee au contenu des logs.",
+        "label": "Recherche",
+        "name": "search",
+        "options": [{ "selected": true, "text": ".*", "value": ".*" }],
+        "query": ".*",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"] },
+  "timezone": "browser",
+  "title": "Campus connecte - Logs",
+  "uid": "campus-logs",
+  "version": 1
+}
