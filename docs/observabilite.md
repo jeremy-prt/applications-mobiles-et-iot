@@ -13,6 +13,23 @@ stdout/stderr des conteneurs -> Grafana Alloy -> Loki -> Grafana
 - **Grafana** fournit la recherche et le tableau de bord provisionné
   `Campus connecté - Logs`.
 
+## Format applicatif
+
+Le backend utilise un logger Pino unique, également transmis à Fastify. Chaque
+événement est écrit sur `stdout` sous la forme d'une seule ligne JSON. Il porte
+au minimum `level`, `time`, `service`, `environment` et `msg`, auxquels le code
+ajoute les champs du contexte (`topic`, compteurs de consolidation, requête HTTP,
+erreur, etc.). Exemple :
+
+```json
+{"level":30,"time":"2026-09-17T08:13:15.543Z","service":"backend","environment":"production","traites":9,"doublons":0,"rejetes":1,"msg":"consolidation"}
+```
+
+Il n'y a pas de fichier de logs dans le conteneur : Docker collecte directement
+`stdout`, puis Alloy transmet ces lignes à Loki. Le simulateur et Mosquitto sont
+des composants du kit fourni ; leurs sorties texte sont aussi centralisées, mais
+ne constituent pas le format applicatif du backend.
+
 Les trois services démarrent avec le projet :
 
 ```sh
@@ -28,12 +45,15 @@ n'écoute que sur `127.0.0.1`.
 
 - le nombre de logs, d'erreurs/rejets, de doublons et de services actifs ;
 - le débit de logs et les anomalies, ventilés par service ;
+- les télémétries traitées, séparées par `deviceId` ;
 - les événements métier du backend : connexion MQTT, ingestion, consolidation,
   doublon et rejet ;
 - le flux complet, filtrable par service et par expression régulière.
 
 Les panneaux reposent sur les logs réellement émis. Une valeur à zéro est donc
 une observation, pas une promesse que le scénario correspondant a été testé.
+Le champ **Device ID** accepte une expression régulière (`sensor-001` ou
+`sensor-00[12]`) pour isoler un ou plusieurs capteurs.
 
 ## Produire des preuves
 

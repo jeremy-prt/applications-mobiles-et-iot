@@ -121,8 +121,22 @@
     },
     {
       "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Chaque serie correspond a un deviceId extrait des logs JSON. Des series distinctes prouvent que les flux ne sont pas melanges.",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 15, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 21 },
+      "id": 9,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
+      "pluginVersion": "13.2.0",
+      "targets": [
+        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum by (deviceId) (count_over_time({service_name=\"backend\"} | json | eventType=\"mqtt.telemetry.processed\" | deviceId=~\"$device_id\" [$__auto]))", "legendFormat": "{{deviceId}}", "queryType": "range", "refId": "A" }
+      ],
+      "title": "Telemetries traitees par capteur",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
       "description": "Flux complet. Utiliser les variables Service et Recherche pour isoler une preuve.",
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 21 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 29 },
       "id": 8,
       "options": { "dedupStrategy": "none", "enableInfiniteScrolling": true, "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
       "pluginVersion": "13.2.0",
@@ -154,6 +168,15 @@
         "regex": "",
         "sort": 1,
         "type": "query"
+      },
+      {
+        "current": { "text": ".*", "value": ".*" },
+        "description": "Expression reguliere appliquee au champ JSON deviceId.",
+        "label": "Device ID",
+        "name": "device_id",
+        "options": [{ "selected": true, "text": ".*", "value": ".*" }],
+        "query": ".*",
+        "type": "textbox"
       },
       {
         "current": { "text": ".*", "value": ".*" },

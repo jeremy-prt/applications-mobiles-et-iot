@@ -29,7 +29,19 @@ const Config = z.object({
 const parsed = Config.safeParse(process.env)
 
 if (!parsed.success) {
-  console.error('Configuration invalide :', z.treeifyError(parsed.error))
+  // Le logger principal depend de la configuration et ne peut donc pas etre
+  // importe ici. Cette erreur de demarrage respecte tout de meme le meme
+  // contrat : une ligne JSON sur stdout, jamais du texte libre sur stderr.
+  process.stdout.write(
+    `${JSON.stringify({
+      level: 50,
+      time: new Date().toISOString(),
+      service: 'backend',
+      environment: process.env.NODE_ENV ?? 'development',
+      error: z.treeifyError(parsed.error),
+      msg: 'configuration invalide',
+    })}\n`,
+  )
   process.exit(1)
 }
 

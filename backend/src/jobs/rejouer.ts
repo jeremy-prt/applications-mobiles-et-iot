@@ -16,7 +16,7 @@ import { logger } from '../logger.ts'
 const minutes = Number(process.argv[2] ?? 60)
 
 if (!Number.isFinite(minutes) || minutes <= 0) {
-  console.error('Usage : npm run rejouer -- <minutes>')
+  logger.error({ argument: process.argv[2] }, 'usage : npm run rejouer -- <minutes>')
   process.exit(1)
 }
 

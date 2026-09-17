@@ -22,6 +22,13 @@ function genreDuTopic(topic: string): Genre {
   return 'inconnu'
 }
 
+/** Extrait l'identifiant de correlation sans faire confiance au reste du corps. */
+function eventIdDuPayload(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const eventId = Reflect.get(payload, 'message_id')
+  return typeof eventId === 'string' ? eventId : undefined
+}
+
 /**
  * Écrit le message tel qu'il arrive. Rien n'est validé ni calculé ici : c'est
  * le rôle du job de consolidation. Un message illisible est gardé sous forme de
@@ -47,6 +54,17 @@ async function ecrireBrut(topic: string, payload: Buffer): Promise<void> {
   }
 
   await messagesBruts().insertOne(document)
+
+  logger.info(
+    {
+      eventType: 'mqtt.message.received',
+      deviceId: document.device_id ?? undefined,
+      eventId: eventIdDuPayload(document.payload),
+      topic,
+      status: 'stored_raw',
+    },
+    'message MQTT stocké dans la zone brute',
+  )
 }
 
 export async function demarrerMqtt() {

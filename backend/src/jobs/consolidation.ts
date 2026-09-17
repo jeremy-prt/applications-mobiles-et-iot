@@ -37,6 +37,26 @@ interface Compteurs {
   abandonnes: number
 }
 
+function deviceIdDuPayload(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const deviceId = Reflect.get(payload, 'device_id')
+  return typeof deviceId === 'string' ? deviceId : undefined
+}
+
+function eventIdDuPayload(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const eventId = Reflect.get(payload, 'message_id')
+  return typeof eventId === 'string' ? eventId : undefined
+}
+
+function contexte(doc: MessageBrut) {
+  return {
+    deviceId: doc.device_id ?? deviceIdDuPayload(doc.payload),
+    eventId: eventIdDuPayload(doc.payload),
+    topic: doc.topic,
+  }
+}
+
 async function marquer(
   id: ObjectId,
   statut: Statut,
@@ -66,18 +86,15 @@ async function traiterTelemetrie(
   const parsed = Telemetrie.safeParse(doc.payload)
   if (!parsed.success) {
     await marquer(doc._id, 'rejete', 'mesure non conforme au contrat')
-    logger.warn({ topic: doc.topic, issues: parsed.error.issues }, 'mesure rejetée')
-    compteurs.rejetes += 1
-    return
-  }
-
-  // Le contrat demande de vérifier que l'objet du topic et celui du message
-  // sont le même.
-  if (doc.device_id !== null && doc.device_id !== parsed.data.device_id) {
-    await marquer(doc._id, 'rejete', 'identifiant du topic et du message différents')
     logger.warn(
-      { topic: doc.topic, device_id: parsed.data.device_id },
-      'mesure rejetée, identifiant du topic et du message différents',
+      {
+        ...contexte(doc),
+        eventType: 'mqtt.telemetry.rejected',
+        status: 'rejected',
+        reason: 'schema_invalid',
+        issues: parsed.error.issues,
+      },
+      'mesure rejetée',
     )
     compteurs.rejetes += 1
     return
@@ -87,9 +104,28 @@ async function traiterTelemetrie(
   await marquer(doc._id, 'traite', res.doublon ? 'doublon écarté' : undefined)
 
   if (res.doublon) {
+    logger.warn(
+      {
+        ...contexte(doc),
+        eventType: 'mqtt.telemetry.duplicate',
+        status: 'ignored',
+        reason: 'duplicate_event',
+      },
+      'doublon de télémétrie ignoré',
+    )
     compteurs.doublons += 1
     return
   }
+
+  logger.info(
+    {
+      ...contexte(doc),
+      eventType: 'mqtt.telemetry.processed',
+      status: res.etatCourantMisAJour ? 'current_state_updated' : 'history_only',
+      ...(res.etatCourantMisAJour ? {} : { reason: 'older_than_current_state' }),
+    },
+    'télémétrie traitée',
+  )
 
   compteurs.traites += 1
   const dates = tranchesParObjet.get(parsed.data.device_id) ?? []
@@ -164,6 +200,39 @@ export async function consolider(): Promise<Compteurs> {
     // appliqué après elle.
     if (doc.payload === undefined) {
       await marquer(doc._id, 'rejete', 'message illisible, JSON invalide')
+      logger.warn(
+        {
+          ...contexte(doc),
+          eventType: 'mqtt.message.rejected',
+          status: 'rejected',
+          reason: 'invalid_json',
+        },
+        'message MQTT rejeté',
+      )
+      compteurs.rejetes += 1
+      continue
+    }
+
+    // L'identite du topic fait foi pour le routage. Ce controle protege aussi
+    // state et availability : aucun message ne peut modifier l'autre device en
+    // placant son identifiant dans le corps d'un topic qui ne lui appartient pas.
+    const deviceIdPayload = deviceIdDuPayload(doc.payload)
+    if (
+      doc.device_id !== null &&
+      deviceIdPayload !== undefined &&
+      doc.device_id !== deviceIdPayload
+    ) {
+      await marquer(doc._id, 'rejete', 'identifiant du topic et du message differents')
+      logger.warn(
+        {
+          ...contexte(doc),
+          claimedDeviceId: deviceIdPayload,
+          eventType: 'mqtt.message.rejected',
+          status: 'rejected',
+          reason: 'device_identity_mismatch',
+        },
+        'message MQTT rejete pour usurpation d identite',
+      )
       compteurs.rejetes += 1
       continue
     }

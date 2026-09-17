@@ -14,6 +14,22 @@ flowchart LR
 Le consommateur MQTT n'écrit pas dans PostgreSQL. Le pourquoi et ce que ça coûte sont dans
 `docs/decisions/J2/08-base-brute-mongodb.md`.
 
+## Identité et isolation des capteurs
+
+Les identifiants stables `sensor-001`, `sensor-002` et `sensor-003` sont déclarés
+dans `infra/kit/devices.json`. Chaque capteur utilise un client MQTT indépendant
+et publie sur `campus/v1/devices/{device_id}/...`. Le backend s'abonne avec `+`,
+extrait l'identifiant du topic et exige qu'il soit identique au champ `device_id`
+du corps avant la consolidation. Cette règle vaut pour la télémétrie, l'état et
+la disponibilité.
+
+MongoDB conserve l'identité extraite du topic avec le brut. PostgreSQL sépare
+l'historique et l'état courant par `device_id`. Les logs exposent `deviceId`,
+`eventId` et `topic`, ce qui permet de prouver l'isolation dans Grafana. Une
+incohérence topic/corps est conservée pour audit mais rejetée avant PostgreSQL.
+La décision complète est dans
+`docs/decisions/J3/10-identite-et-adressage-des-devices.md`.
+
 ## Technologies retenues
 
 | Couche | Techno | Version |
