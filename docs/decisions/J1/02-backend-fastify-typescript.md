@@ -52,6 +52,3 @@ indique le champ fautif, et `/health` répond toujours.
 Rien de tout ça ne protège le consommateur MQTT. Le gestionnaire de messages est un écouteur
 d'événement, hors du cycle de requête de Fastify, donc ses erreurs ne remontent à aucun
 gestionnaire d'erreur HTTP.
-
-Ce qui ferait changer d'avis sur NestJS est la durée. Sur un projet plus long que 4 jours, sa
-structure toute faite serait amortie.
