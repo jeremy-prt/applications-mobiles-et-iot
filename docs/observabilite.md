@@ -47,17 +47,24 @@ n'écoute que sur `127.0.0.1`.
 
 ## Ce que montre le tableau de bord
 
-- le nombre de logs, d'erreurs/rejets, de doublons et de services actifs ;
-- le débit de logs et les anomalies, ventilés par service ;
-- les télémétries traitées, séparées par `deviceId` ;
-- les événements métier du backend : connexion MQTT, ingestion, consolidation,
-  doublon et rejet ;
-- le flux complet, filtrable par service et par expression régulière.
+Il est rangé en cinq sections, de la vue d'ensemble au détail. Chaque panneau
+porte une description : passer la souris sur le i en haut à gauche du panneau
+explique ce que le chiffre veut dire et quelle valeur est normale.
+
+| Section | À quelle question elle répond |
+|---|---|
+| La chaîne fonctionne-t-elle en ce moment ? | Combien de mesures entrent, combien sont refusées, combien de doublons, quels capteurs se sont tus |
+| Qu'est-ce qui a été refusé, et pourquoi ? | Les refus comptés par motif, et le détail de chaque ligne refusée |
+| Suivre un capteur ou une mesure précise | Le parcours complet d'une mesure à partir de son identifiant de corrélation |
+| Incidents d'infrastructure | Pertes du broker, reconnexions, usurpations détectées, erreurs |
+| Tout le flux | Le journal complet, filtrable par texte libre |
+
+Quatre champs en haut filtrent l'ensemble : le service, un capteur, un
+identifiant de mesure et une recherche libre. Les trois derniers acceptent une
+expression régulière, par exemple `sensor-00[12]`, et `.*` veut dire tout.
 
 Les panneaux reposent sur les logs réellement émis. Une valeur à zéro est donc
 une observation, pas une promesse que le scénario correspondant a été testé.
-Le champ **Device ID** accepte une expression régulière (`sensor-001` ou
-`sensor-00[12]`) pour isoler un ou plusieurs capteurs.
 
 ## Produire des preuves
 

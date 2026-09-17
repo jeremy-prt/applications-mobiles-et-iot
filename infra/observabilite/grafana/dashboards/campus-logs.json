@@ -1,198 +1,1075 @@
 {
+  "uid": "campus-logs",
+  "title": "Campus connecté - Logs",
+  "description": "Ce que le système a fait, et ce qu'il a refusé de faire. Chaque panneau porte une description : survoler le petit i en haut à gauche du panneau pour savoir ce que le chiffre veut dire.",
+  "tags": [
+    "campus",
+    "iot"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
   "annotations": {
     "list": []
   },
-  "description": "Centralisation des journaux Docker du projet Campus connecte.",
-  "editable": false,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 1,
-  "id": null,
   "links": [],
-  "liveNow": true,
   "panels": [
     {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Nombre de lignes produites par les services selectionnes sur la periode.",
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "id": 1,
-      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
-      "pluginVersion": "13.2.0",
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum(count_over_time({service_name=~\"$service\"} |~ \"$search\" [$__range]))", "instant": true, "queryType": "instant", "refId": "A" }
-      ],
-      "title": "Logs sur la periode",
-      "type": "stat"
+      "type": "row",
+      "title": "La chaîne fonctionne-t-elle en ce moment ?",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
     },
     {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Erreurs, echecs et rejets detectes dans le texte des journaux.",
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } },
-        "overrides": []
+      "id": 10,
+      "type": "stat",
+      "title": "Mesures enregistrées",
+      "description": "Nombre de mesures entrées en base sur la période choisie en haut à droite. Les trois capteurs publient toutes les 2 secondes, donc environ 90 par minute quand tout va bien. Un zéro veut dire que plus rien n'arrive.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "0"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Messages refusés",
+      "description": "Messages écartés avant d'entrer en base : JSON illisible, champ manquant, valeur impossible, date dans l'avenir, ou identité incohérente. Zéro est le cas normal. Le détail par motif est plus bas.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_rejetee\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "0"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Doublons écartés",
+      "description": "Mesures reçues deux fois et comptées une seule. Le broker peut livrer deux fois un message en QoS 1, et le kit rejoue volontairement des doublons. Une valeur supérieure à zéro est normale et prouve que la déduplication travaille.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=\"backend\"} | json | eventType=\"doublon_ecarte\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "0"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Capteurs devenus silencieux",
+      "description": "Nombre de fois où un capteur a cessé d'envoyer des mesures pendant plus de 30 secondes, le seuil de fraîcheur déclaré. Chaque bascule est comptée une seule fois, pas à chaque passage du job.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_ancienne\" | bascule=\"devenue_ancienne\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "0"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Mesures enregistrées, par capteur",
+      "description": "Débit d'ingestion de chaque capteur. Trois courbes à la même hauteur signifient que les trois objets sont suivis séparément et qu'aucun ne décroche. Une courbe qui tombe à zéro désigne le capteur en cause.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (deviceId) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" | deviceId=~\"$capteur\" [$__auto]))",
+          "queryType": "range",
+          "refId": "A",
+          "legendFormat": "{{deviceId}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "stacking": {
+              "mode": "none"
+            },
+            "showPoints": "never"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
       "id": 2,
-      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
-      "pluginVersion": "13.2.0",
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum(count_over_time({service_name=~\"$service\"} |~ \"(?i)(error|fatal|erreur|echec|échec|rejete|rejeté|refus)\" |~ \"$search\" [$__range]))", "instant": true, "queryType": "instant", "refId": "A" }
-      ],
-      "title": "Erreurs et rejets",
-      "type": "stat"
+      "type": "row",
+      "title": "Qu'est-ce qui a été refusé, et pourquoi ?",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "panels": []
     },
     {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Messages explicitement ecartes comme doublons par la consolidation.",
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } },
-        "overrides": []
+      "id": 20,
+      "type": "timeseries",
+      "title": "Refus par motif",
+      "description": "Chaque refus porte un code fixe, ce qui permet de compter par cause au lieu de lire les messages un par un. json_illisible : le message n'était pas du JSON. schema_invalide : un champ manque ou n'a pas le bon type. valeur_hors_bornes : la mesure sort des capacités d'un capteur. date_dans_l_avenir : la mesure est datée trop en avance. identite_incoherente : le capteur du topic et celui du message diffèrent.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
       },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (reason) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_rejetee\" [$__auto]))",
+          "queryType": "range",
+          "refId": "A",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "stacking": {
+              "mode": "normal"
+            },
+            "showPoints": "never"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Mesures acceptées, selon leur effet",
+      "description": "etat_courant_mis_a_jour : la mesure est la plus récente, c'est elle que l'application affiche. historique_seulement : la mesure est arrivée en retard, elle est rangée dans l'historique mais ne remplace pas ce qui est affiché, pour ne pas faire reculer l'état de la salle.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (status) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" [$__auto]))",
+          "queryType": "range",
+          "refId": "A",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "stacking": {
+              "mode": "normal"
+            },
+            "showPoints": "never"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 22,
+      "type": "logs",
+      "title": "Détail des messages refusés",
+      "description": "La ligne complète de chaque refus, avec le capteur concerné, le motif et le contenu fautif. Cliquer sur une ligne déplie tous ses champs.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{service_name=\"backend\"} | json | eventType=\"mesure_rejetee\" | deviceId=~\"$capteur\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    },
+    {
       "id": 3,
-      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
-      "pluginVersion": "13.2.0",
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum(sum_over_time({service_name=\"backend\"} | json | unwrap doublons | __error__=\"\" [$__range]))", "instant": true, "queryType": "instant", "refId": "A" }
-      ],
-      "title": "Doublons detectes",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Services ayant emis au moins une ligne sur la periode.",
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } },
-        "overrides": []
+      "type": "row",
+      "title": "Suivre un capteur ou une mesure précise",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
       },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "panels": []
+    },
+    {
+      "id": 30,
+      "type": "logs",
+      "title": "Parcours d'une mesure, par identifiant de corrélation",
+      "description": "Coller un eventId dans la variable en haut pour voir toutes les étapes par lesquelles cette mesure est passée : sa réception sur MQTT, puis son traitement. C'est ce qui permet de répondre à la question « qu'est devenu ce message ». Tant que la variable vaut .*, ce panneau montre tout le flux.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{service_name=\"backend\"} | json | eventId=~\"$event_id\" | deviceId=~\"$capteur\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    },
+    {
       "id": 4,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
-      "pluginVersion": "13.2.0",
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "count(sum by (service_name) (count_over_time({service_name=~\"$service\"}[$__range])))", "instant": true, "queryType": "instant", "refId": "A" }
-      ],
-      "title": "Services actifs",
-      "type": "stat"
+      "type": "row",
+      "title": "Incidents d'infrastructure",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "panels": []
     },
     {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Debit des journaux, groupe par service Docker Compose.",
-      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } }, "unit": "logs/sec" }, "overrides": [] },
-      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 4 },
+      "id": 40,
+      "type": "stat",
+      "title": "Pertes de connexion au broker",
+      "description": "Nombre de fois où le backend a constaté que le broker MQTT ne répondait plus. Pendant ce temps l'API continue de servir les mesures déjà en base.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 43
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=\"backend\"} | json | eventType=\"broker_perdu\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "0"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 41,
+      "type": "stat",
+      "title": "Tentatives de reconnexion",
+      "description": "Le backend réessaie toutes les 2 secondes. Un nombre élevé indique une coupure longue, pas un problème supplémentaire.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 43
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=\"backend\"} | json | eventType=\"broker_reconnexion\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "0"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 42,
+      "type": "stat",
+      "title": "Mesures hors session annoncée",
+      "description": "Mesures dont l'identifiant ne correspond pas à la session que le capteur a annoncée. Elles sont acceptées mais signalées : le kit partage un seul compte MQTT entre les objets, donc c'est une détection d'usurpation, pas un blocage.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 43
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=\"backend\"} | json | eventType=\"session_inattendue\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "0"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 43,
+      "type": "stat",
+      "title": "Erreurs du backend",
+      "description": "Lignes de niveau error, toutes causes confondues. Zéro est attendu en fonctionnement normal.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 43
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({service_name=\"backend\"} | json | level=\"error\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "0"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 44,
+      "type": "logs",
+      "title": "Événements du broker et de la fraîcheur",
+      "description": "Connexions, pertes, reconnexions, et bascules d'un capteur en donnée ancienne ou son retour. C'est ici qu'on lit la chronologie d'une panne.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{service_name=\"backend\"} | json | eventType=~\"broker_.*|mesure_ancienne\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    },
+    {
       "id": 5,
-      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
-      "pluginVersion": "13.2.0",
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum by (service_name) (rate({service_name=~\"$service\"} |~ \"$search\" [$__auto]))", "legendFormat": "{{service_name}}", "queryType": "range", "refId": "A" }
-      ],
-      "title": "Volume de logs par service",
-      "type": "timeseries"
+      "type": "row",
+      "title": "Tout le flux",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
+      "panels": []
     },
     {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Frequence des lignes signalant une anomalie ou une indisponibilite.",
-      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "bars", "fillOpacity": 45, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } }, "unit": "logs/sec" }, "overrides": [] },
-      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 4 },
-      "id": 6,
-      "options": { "legend": { "calcs": ["sum"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
-      "pluginVersion": "13.2.0",
+      "id": 50,
+      "type": "logs",
+      "title": "Journal complet",
+      "description": "Toutes les lignes des services sélectionnés. La zone Recherche accepte une expression régulière pour filtrer sur n'importe quel texte.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
       "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum by (service_name) (rate({service_name=~\"$service\"} |~ \"(?i)(error|fatal|erreur|echec|échec|rejete|rejeté|refus|offline|injoignable)\" [$__auto]))", "legendFormat": "{{service_name}}", "queryType": "range", "refId": "A" }
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{service_name=~\"$service\"} |~ \"$recherche\"",
+          "queryType": "range",
+          "refId": "A"
+        }
       ],
-      "title": "Anomalies par service",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Evenements utiles pour prouver la connexion MQTT, l'ingestion, les rejets et le fonctionnement du job.",
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 12 },
-      "id": 7,
-      "options": { "dedupStrategy": "none", "enableInfiniteScrolling": false, "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
-      "pluginVersion": "13.2.0",
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "direction": "backward", "editorMode": "code", "expr": "{service_name=\"backend\"} |~ \"(?i)(MQTT|broker|API|consolid|mesure|doublon|rejet|Mongo)\"", "queryType": "range", "refId": "A" }
-      ],
-      "title": "Parcours metier du backend",
-      "type": "logs"
-    },
-    {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Chaque serie correspond a un deviceId extrait des logs JSON. Des series distinctes prouvent que les flux ne sont pas melanges.",
-      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 15, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "unit": "short" }, "overrides": [] },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 21 },
-      "id": 9,
-      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" } },
-      "pluginVersion": "13.2.0",
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "sum by (deviceId) (count_over_time({service_name=\"backend\"} | json | eventType=\"mesure_enregistree\" | deviceId=~\"$device_id\" [$__auto]))", "legendFormat": "{{deviceId}}", "queryType": "range", "refId": "A" }
-      ],
-      "title": "Telemetries traitees par capteur",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "description": "Flux complet. Utiliser les variables Service et Recherche pour isoler une preuve.",
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 29 },
-      "id": 8,
-      "options": { "dedupStrategy": "none", "enableInfiniteScrolling": true, "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
-      "pluginVersion": "13.2.0",
-      "targets": [
-        { "datasource": { "type": "loki", "uid": "loki" }, "direction": "backward", "editorMode": "code", "expr": "{service_name=~\"$service\"} |~ \"$search\"", "queryType": "range", "refId": "A" }
-      ],
-      "title": "Tous les logs",
-      "type": "logs"
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
     }
   ],
-  "preload": false,
-  "refresh": "5s",
-  "schemaVersion": 42,
-  "tags": ["campus", "logs", "docker"],
   "templating": {
     "list": [
       {
-        "allValue": ".+",
-        "current": { "text": "Tous", "value": "$__all" },
-        "datasource": { "type": "loki", "uid": "loki" },
-        "definition": "label_values(service_name)",
-        "includeAll": true,
-        "label": "Service",
-        "multi": true,
         "name": "service",
-        "options": [],
-        "query": { "label": "service_name", "refId": "LokiVariableQueryEditor-VariableQuery", "stream": "", "type": 1 },
-        "refresh": 2,
-        "regex": "",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": {
+          "label": "service_name",
+          "refId": "LokiVariableQueryEditor-VariableQuery",
+          "stream": "",
+          "type": 1
+        },
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
         "sort": 1,
-        "type": "query"
+        "description": "Quel conteneur regarder. backend est notre code, les autres viennent du kit."
       },
       {
-        "current": { "text": ".*", "value": ".*" },
-        "description": "Expression reguliere appliquee au champ JSON deviceId.",
-        "label": "Device ID",
-        "name": "device_id",
-        "options": [{ "selected": true, "text": ".*", "value": ".*" }],
+        "name": "capteur",
+        "label": "Capteur",
+        "type": "textbox",
         "query": ".*",
-        "type": "textbox"
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
+        "description": "Un identifiant de capteur pour n'afficher que lui, par exemple sensor-001. Accepte une expression régulière comme sensor-00[12]. Laisser .* pour tous."
       },
       {
-        "current": { "text": ".*", "value": ".*" },
-        "description": "Expression reguliere appliquee au contenu des logs.",
+        "name": "event_id",
+        "label": "Identifiant de mesure",
+        "type": "textbox",
+        "query": ".*",
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
+        "description": "Coller ici l'eventId d'une mesure pour reconstituer son parcours complet."
+      },
+      {
+        "name": "recherche",
         "label": "Recherche",
-        "name": "search",
-        "options": [{ "selected": true, "text": ".*", "value": ".*" }],
+        "type": "textbox",
         "query": ".*",
-        "type": "textbox"
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
+        "description": "Texte libre cherché dans le journal complet, en bas."
       }
     ]
-  },
-  "time": { "from": "now-30m", "to": "now" },
-  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"] },
-  "timezone": "browser",
-  "title": "Campus connecte - Logs",
-  "uid": "campus-logs",
-  "version": 1
+  }
 }
