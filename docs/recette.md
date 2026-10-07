@@ -196,7 +196,7 @@ docker compose up -d --wait mosquitto
 
 ## R08, commande exécutée
 
-- Scénario et responsable : R08, Jérémy Perret
+- Scénario et responsable : R08, Jérémy Perret et Kylian Patry
 - Version du projet et environnement : J4, macOS arm64, Docker Compose du dépôt, kit non modifié
 - Conditions initiales et paramètres : `sensor-001` en ligne, ventilation arrêtée, expiration 10 secondes, attente maximale 15 secondes
 - Action effectuée :
