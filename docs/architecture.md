@@ -57,8 +57,10 @@ backend/src/
   http/       routes Fastify
 ```
 
-`mqtt/` et `http/` appellent `domain/`, jamais l'inverse. Hexagonale, CQRS et microservices
-ont été examinés et écartés, voir `docs/decisions/J1/04-architecture-du-backend.md`.
+Architecture en couches (n-layer). Les entrées (`http/`, `mqtt/`, `jobs/`) appellent les règles
+de `domain/` et la base de `db/`, jamais l'inverse. `domain/` n'importe ni la base, ni le broker,
+ni Fastify. Hexagonale, CQRS et microservices ont été examinés et écartés, voir
+`docs/decisions/J1/04-architecture-du-backend.md`.
 
 ```
 mobile/src/
