@@ -75,11 +75,7 @@ export function etatDonnees(
 
 export function messageEtatDonnees(etat: EtatDonnees): string | null {
   if (etat === 'a-jour') return null
-  if (etat === 'hors-ligne') {
-    return 'Téléphone hors ligne. Données conservées, elles ne décrivent plus la salle en direct.'
-  }
-  if (etat === 'serveur-injoignable') {
-    return 'Serveur injoignable. Données conservées, elles ne décrivent plus la salle en direct.'
-  }
-  return 'Données du cache, la dernière réponse commence à dater.'
+  if (etat === 'hors-ligne') return 'Téléphone hors ligne'
+  if (etat === 'serveur-injoignable') return 'Serveur injoignable'
+  return 'Mise à jour en attente'
 }

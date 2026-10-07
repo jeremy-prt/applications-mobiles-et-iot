@@ -1,5 +1,7 @@
-import { StyleSheet, View } from 'react-native'
+import { useEffect } from 'react'
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native'
 import { ActivityIndicator, Button, Text, useTheme } from 'react-native-paper'
+import type { LigneStatut } from '@/lib/commandes'
 
 /** L'état réel vient du topic `state` de l'objet, jamais d'une commande envoyée. */
 function libelleEtatReel(valeur: boolean | null): string {
@@ -10,70 +12,63 @@ function libelleEtatReel(valeur: boolean | null): string {
 export function PanneauVentilation({
   etatReel,
   bloque,
-  explication,
-  titreSuivi,
-  libelleSuivi,
-  envoiEnCours,
-  erreur,
+  statut,
   onCommander,
 }: {
   etatReel: boolean | null
   bloque: boolean
-  /** Pourquoi les boutons sont bloqués, quand ce n'est pas évident. */
-  explication: string | null
-  titreSuivi: string | null
-  libelleSuivi: string | null
-  envoiEnCours: boolean
-  erreur: string | null
+  statut: LigneStatut | null
   onCommander: (enabled: boolean) => void
 }) {
   const theme = useTheme()
+  const activer = etatReel !== true
+  const texte = statut?.texte ?? null
+
+  // accessibilityLiveRegion n'existe que sur Android.
+  useEffect(() => {
+    if (Platform.OS === 'ios' && texte !== null) AccessibilityInfo.announceForAccessibility(texte)
+  }, [texte])
 
   return (
     <View style={styles.panneau}>
-      <Text variant="titleSmall">Ventilation</Text>
       <View style={styles.ligne}>
-        <Text variant="bodyMedium">État réel</Text>
-        <Text variant="bodyMedium">{libelleEtatReel(etatReel)}</Text>
+        <Text variant="titleMedium">Ventilation</Text>
+        <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+          {libelleEtatReel(etatReel)}
+        </Text>
       </View>
 
-      <View style={styles.boutons}>
-        <Button mode="contained" disabled={bloque} onPress={() => onCommander(true)} style={styles.bouton}>
-          Activer
-        </Button>
-        <Button mode="outlined" disabled={bloque} onPress={() => onCommander(false)} style={styles.bouton}>
-          Arrêter
-        </Button>
-      </View>
+      <Button
+        mode="contained"
+        disabled={bloque}
+        onPress={() => onCommander(activer)}
+        accessibilityLabel={activer ? 'Activer la ventilation' : 'Arrêter la ventilation'}
+      >
+        {activer ? 'Activer' : 'Arrêter'}
+      </Button>
 
-      {explication === null ? null : <Text variant="bodySmall">{explication}</Text>}
-
-      {titreSuivi === null ? null : (
-        <View style={styles.suivi} accessibilityLiveRegion="polite">
-          <Text variant="labelMedium">{titreSuivi}</Text>
-          {envoiEnCours ? (
-            <View style={styles.envoi}>
-              <ActivityIndicator size="small" />
-              <Text variant="bodyMedium">Envoi au serveur</Text>
-            </View>
-          ) : null}
-          {libelleSuivi === null ? null : <Text variant="bodyMedium">{libelleSuivi}</Text>}
-          {erreur === null ? null : (
-            <Text variant="bodyMedium" style={{ color: theme.colors.error }}>
-              {erreur}
+      <View style={styles.statut} accessibilityLiveRegion="polite">
+        {statut === null ? null : (
+          <>
+            {statut.ton === 'attente' ? <ActivityIndicator size={12} /> : null}
+            <Text
+              variant="bodySmall"
+              style={{
+                color: statut.ton === 'echec' ? theme.colors.error : theme.colors.onSurfaceVariant,
+              }}
+            >
+              {statut.texte}
             </Text>
-          )}
-        </View>
-      )}
+          </>
+        )}
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  panneau: { gap: 8, marginBottom: 8 },
-  ligne: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
-  boutons: { flexDirection: 'row', gap: 8 },
-  bouton: { flex: 1 },
-  suivi: { gap: 4 },
-  envoi: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  panneau: { gap: 12 },
+  ligne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  // Hauteur réservée : la ligne apparaît et s'efface sans faire sauter l'historique.
+  statut: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 18 },
 })

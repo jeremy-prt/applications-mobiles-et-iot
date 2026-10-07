@@ -7,7 +7,9 @@ import {
   estIdCommandeValide,
   idPourIntention,
   libelleSuivi,
+  ligneStatut,
   messageErreurEnvoi,
+  DUREE_CONFIRMATION_MS,
   PLAFOND_SUIVI_MS,
   STATUTS_COMMANDE,
   suiviEnCours,
@@ -51,16 +53,13 @@ test('aucun libelle ne parle d activation', () => {
   }
 })
 
-test('pending non publiee : seulement acceptee par le serveur', () => {
-  assert.equal(libelleSuivi(commande({ published_at: null }), 0), 'Acceptée par le serveur')
-})
-
-test('pending publiee : en attente de l objet', () => {
-  assert.equal(libelleSuivi(commande({}), 0), "Envoyée, en attente de l'objet")
+test('pending, publiee ou non : en attente de confirmation', () => {
+  assert.equal(libelleSuivi(commande({ published_at: null }), 0), 'En attente de confirmation')
+  assert.equal(libelleSuivi(commande({}), 0), 'En attente de confirmation')
 })
 
 test('executee', () => {
-  assert.equal(libelleSuivi(commande({ status: 'executed' }), 0), "Confirmée par l'objet")
+  assert.equal(libelleSuivi(commande({ status: 'executed' }), 0), 'Commande confirmée')
 })
 
 test('refusee avec sa raison', () => {
@@ -85,8 +84,62 @@ test('une reponse en retard est signalee', () => {
 test('pending au dela du plafond : resultat inconnu, pas en attente', () => {
   assert.equal(
     libelleSuivi(commande({}), PLAFOND_SUIVI_MS + 1),
-    'Toujours sans confirmation, résultat inconnu',
+    'Sans confirmation, résultat inconnu',
   )
+})
+
+const etat = (champs: Partial<Parameters<typeof ligneStatut>[0]>) =>
+  ligneStatut({
+    enLigne: true,
+    envoiEnCours: false,
+    erreurEnvoi: null,
+    commande: undefined,
+    ecouleMs: 0,
+    depuisReponseMs: 0,
+    ...champs,
+  })
+
+test('rien a dire sans commande', () => {
+  assert.equal(etat({}), null)
+})
+
+test('envoi ou suivi en cours : une seule ligne d attente', () => {
+  assert.equal(etat({ envoiEnCours: true })?.ton, 'attente')
+  assert.deepEqual(etat({ commande: commande({}) }), {
+    texte: 'En attente de confirmation',
+    ton: 'attente',
+  })
+})
+
+test('hors ligne, la ligne dit pourquoi le bouton est bloque', () => {
+  assert.deepEqual(etat({ enLigne: false }), {
+    texte: 'Hors ligne, commande impossible',
+    ton: 'info',
+  })
+})
+
+test('hors ligne prime sur une erreur precedente', () => {
+  assert.equal(etat({ enLigne: false, erreurEnvoi: 'Erreur' })?.ton, 'info')
+})
+
+test('une erreur d envoi reste affichee', () => {
+  assert.deepEqual(etat({ erreurEnvoi: 'Erreur', depuisReponseMs: 60_000 }), {
+    texte: 'Erreur',
+    ton: 'echec',
+  })
+})
+
+test('la confirmation s efface seule', () => {
+  const executee = commande({ status: 'executed' })
+  assert.equal(etat({ commande: executee })?.texte, 'Commande confirmée')
+  assert.equal(etat({ commande: executee, depuisReponseMs: DUREE_CONFIRMATION_MS + 1 }), null)
+})
+
+test('un refus ou une absence de reponse reste affiche', () => {
+  for (const status of ['rejected', 'unknown'] as const) {
+    assert.equal(etat({ commande: commande({ status }), depuisReponseMs: 60_000 })?.ton, 'echec')
+  }
+  assert.equal(etat({ commande: commande({}), ecouleMs: PLAFOND_SUIVI_MS + 1 })?.ton, 'echec')
 })
 
 test('un nouvel identifiant respecte le format du contrat', () => {
@@ -121,7 +174,7 @@ test('deux intentions successives ont deux identifiants', () => {
 test('objet hors ligne : la commande n est pas partie', () => {
   assert.equal(
     messageErreurEnvoi('DEVICE_OFFLINE', 409),
-    "L'objet est hors ligne, la commande n'a pas été envoyée",
+    "Objet hors ligne, rien n'a été envoyé",
   )
 })
 

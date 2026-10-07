@@ -41,22 +41,58 @@ export function libelleSuivi(
   ecouleMs: number,
   plafondMs: number = PLAFOND_SUIVI_MS,
 ): string {
-  const retard = commande.late ? ', réponse arrivée après le délai' : ''
+  const retard = commande.late ? ' après le délai' : ''
 
-  if (commande.status === 'executed') return `Confirmée par l'objet${retard}`
+  if (commande.status === 'executed') return `Commande confirmée${retard}`
   if (commande.status === 'rejected') {
     const motif = commande.reason === null || commande.reason === '' ? '' : `, ${commande.reason}`
-    return `Refusée par l'objet${motif}${retard}`
+    return `Refusée par l'objet${retard}${motif}`
   }
   if (commande.status === 'unknown') return 'Sans réponse, résultat inconnu'
-
-  if (ecouleMs > plafondMs) return 'Toujours sans confirmation, résultat inconnu'
-  if (commande.published_at === null) return 'Acceptée par le serveur'
-  return "Envoyée, en attente de l'objet"
+  if (ecouleMs > plafondMs) return 'Sans confirmation, résultat inconnu'
+  return 'En attente de confirmation'
 }
 
-export function libelleIntention(enabled: boolean): string {
-  return enabled ? "Demande d'activation" : "Demande d'arrêt"
+/** Le temps de lire la confirmation. Ensuite l'état réel affiché suffit. */
+export const DUREE_CONFIRMATION_MS = 4_000
+
+export type TonStatut = 'attente' | 'info' | 'echec'
+
+export interface LigneStatut {
+  texte: string
+  ton: TonStatut
+}
+
+/** L'unique ligne affichée sous le bouton de ventilation, ou rien. */
+export function ligneStatut({
+  enLigne,
+  envoiEnCours,
+  erreurEnvoi,
+  commande,
+  ecouleMs,
+  depuisReponseMs,
+}: {
+  enLigne: boolean
+  envoiEnCours: boolean
+  /** Message déjà formulé de l'envoi échoué. */
+  erreurEnvoi: string | null
+  commande: SuiviCommande | undefined
+  /** Depuis l'envoi de la commande suivie. */
+  ecouleMs: number
+  /** Depuis la dernière réponse du suivi. */
+  depuisReponseMs: number
+}): LigneStatut | null {
+  if (envoiEnCours) return { texte: 'En attente de confirmation', ton: 'attente' }
+  if (!enLigne) return { texte: 'Hors ligne, commande impossible', ton: 'info' }
+  if (erreurEnvoi !== null) return { texte: erreurEnvoi, ton: 'echec' }
+  if (commande === undefined) return null
+
+  const texte = libelleSuivi(commande, ecouleMs)
+  if (suiviEnCours(commande.status, ecouleMs)) return { texte, ton: 'attente' }
+  if (commande.status === 'executed') {
+    return depuisReponseMs > DUREE_CONFIRMATION_MS ? null : { texte, ton: 'info' }
+  }
+  return { texte, ton: 'echec' }
 }
 
 const ID_COMMANDE = /^[A-Za-z0-9_-]{1,80}$/
@@ -94,17 +130,13 @@ export function envoiPeutEtreArrive(statutHttp: number | null): boolean {
 }
 
 export function messageErreurEnvoi(code: string | null, statutHttp: number | null): string {
-  if (code === 'DEVICE_OFFLINE') return "L'objet est hors ligne, la commande n'a pas été envoyée"
-  if (code === 'DEVICE_NOT_FOUND') return "Objet inconnu du serveur, la commande n'a pas été envoyée"
-  if (code === 'DEVICE_NOT_AUTHORIZED') {
-    return "Objet non autorisé par le serveur, la commande n'a pas été envoyée"
-  }
-  if (code === 'COMMAND_ID_CONFLICT') {
-    return "Identifiant de commande déjà pris, rien n'a été envoyé. Un nouvel essai en tirera un autre"
-  }
-  const reessai = 'Réessayer renvoie la même demande sans la doubler'
-  if (statutHttp === null) return `Serveur injoignable, la commande a pu partir. ${reessai}`
-  if (statutHttp >= 500) return `Erreur du serveur, la commande a pu partir. ${reessai}`
-  if (statutHttp < 400) return `Réponse du serveur illisible, la commande a pu partir. ${reessai}`
-  return `Le serveur a refusé la demande (${statutHttp}), la commande n'a pas été envoyée`
+  if (code === 'DEVICE_OFFLINE') return "Objet hors ligne, rien n'a été envoyé"
+  if (code === 'DEVICE_NOT_FOUND') return "Objet inconnu du serveur, rien n'a été envoyé"
+  if (code === 'DEVICE_NOT_AUTHORIZED') return "Objet non autorisé, rien n'a été envoyé"
+  if (code === 'COMMAND_ID_CONFLICT') return "Conflit d'identifiant, réessayez"
+  // « a pu partir » : réessayer est sans risque, le même identifiant sera renvoyé.
+  if (statutHttp === null) return 'Serveur injoignable, la commande a pu partir'
+  if (statutHttp >= 500) return 'Erreur du serveur, la commande a pu partir'
+  if (statutHttp < 400) return 'Réponse illisible, la commande a pu partir'
+  return `Refusée par le serveur (${statutHttp})`
 }

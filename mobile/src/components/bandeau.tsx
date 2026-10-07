@@ -45,7 +45,7 @@ export function BandeauDonnees({
         {message}
       </Text>
       <Text variant="bodySmall" style={{ color: theme.colors.onSecondaryContainer }}>
-        Reçues le {dateEtHeure(misAJourA)}, {depuis(new Date(misAJourA).toISOString(), maintenant)}.
+        Données reçues le {dateEtHeure(misAJourA)}, {depuis(new Date(misAJourA).toISOString(), maintenant)}
       </Text>
     </View>
   )

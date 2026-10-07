@@ -27,14 +27,7 @@ export function Courbe({
 }) {
   const theme = useTheme()
 
-  if (valeurs.length === 0) {
-    return (
-      <View style={styles.bloc}>
-        <Text variant="labelMedium">{titre}</Text>
-        <Text variant="bodySmall">Pas encore d'historique pour cette période.</Text>
-      </View>
-    )
-  }
+  if (valeurs.length === 0) return null
 
   const bas = Math.min(...valeurs)
   const haut = Math.max(...valeurs)
@@ -44,12 +37,12 @@ export function Courbe({
   return (
     <View style={styles.bloc}>
       <View style={styles.entete}>
-        <Text variant="labelMedium">{titre}</Text>
-        <Text variant="bodySmall">
+        <Text variant="labelLarge">{titre}</Text>
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
           {bas.toFixed(decimales)} à {haut.toFixed(decimales)} {unite}
         </Text>
       </View>
-      <View style={[styles.cadre, { backgroundColor: theme.colors.surfaceVariant }]}>
+      <View style={styles.barres}>
         {valeurs.map((valeur, index) => (
           <View
             key={index}
@@ -71,16 +64,8 @@ export function Courbe({
 }
 
 const styles = StyleSheet.create({
-  bloc: { gap: 6, marginBottom: 16 },
+  bloc: { gap: 8 },
   entete: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  cadre: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: HAUTEUR,
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    gap: 1,
-  },
+  barres: { flexDirection: 'row', alignItems: 'flex-end', height: HAUTEUR, gap: 1 },
   barre: { flex: 1, borderRadius: 1, minWidth: 1 },
 })

@@ -17,7 +17,6 @@ const DELAI_ENVOI_MS = 10_000
 
 interface CommandeSuivie {
   commandId: string
-  enabled: boolean
   envoyeeA: number
 }
 
@@ -41,10 +40,10 @@ export function useCommandeVentilation(deviceId: string) {
     // réseau, peut-être bien après que l'utilisateur a changé d'avis.
     networkMode: 'always',
     retry: false,
-    onSuccess: (commande, { enabled }) => {
+    onSuccess: (commande) => {
       setIncertain(null)
       client.setQueryData(['commande', commande.command_id], commande)
-      setSuivie({ commandId: commande.command_id, enabled, envoyeeA: Date.now() })
+      setSuivie({ commandId: commande.command_id, envoyeeA: Date.now() })
     },
     onError: (erreur, intention) => {
       const statut = erreur instanceof ErreurApi ? erreur.statut : null
@@ -84,10 +83,9 @@ export function useCommandeVentilation(deviceId: string) {
     envoyer,
     envoiEnCours: envoi.isPending,
     erreurEnvoi: envoi.error,
-    /** La consigne en cours d'envoi ou suivie, pour titrer le suivi. */
-    intention: envoi.variables?.enabled ?? suivie?.enabled ?? null,
     commande: suivie === null ? undefined : suivi.data,
     envoyeeA: suivie?.envoyeeA ?? null,
-    suiviEnEchec: suivi.failureCount > 0,
+    /** Le suivi ne bouge plus une fois définitif : c'est l'heure du verdict. */
+    reponseA: suivi.dataUpdatedAt,
   }
 }

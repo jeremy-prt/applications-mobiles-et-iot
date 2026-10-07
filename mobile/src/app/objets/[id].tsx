@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router'
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
-import { Button, Divider, Text, useTheme } from 'react-native-paper'
+import { Button, Text, useTheme } from 'react-native-paper'
 import { ErreurApi } from '@/api/client'
 import { useCommandeVentilation } from '@/api/commandes'
 import { useObjet } from '@/api/salles'
@@ -9,32 +9,44 @@ import { BandeauDonnees } from '@/components/bandeau'
 import { Courbe } from '@/components/courbe'
 import { EtatChargement, EtatErreur, EtatHorsLigne, EtatVide } from '@/components/etats'
 import { PanneauVentilation } from '@/components/ventilation'
-import {
-  libelleIntention,
-  libelleSuivi,
-  messageErreurEnvoi,
-  suiviEnCours,
-} from '@/lib/commandes'
+import { ligneStatut, messageErreurEnvoi } from '@/lib/commandes'
 import { dateEtHeure, depuis } from '@/lib/dates'
-import { fraicheurAffichee, libelleFraicheur } from '@/lib/fraicheur'
+import { fraicheurAffichee, type Fraicheur } from '@/lib/fraicheur'
 import { useMaintenant } from '@/lib/horloge'
 import { useEnLigne } from '@/lib/reseau'
 
 function Ligne({ libelle, valeur }: { libelle: string; valeur: string }) {
+  const theme = useTheme()
   return (
     <View style={styles.ligne}>
-      <Text variant="bodyMedium">{libelle}</Text>
-      <Text variant="bodyMedium" style={styles.valeur}>
+      <Text variant="bodyLarge">{libelle}</Text>
+      <Text variant="bodyLarge" style={[styles.valeur, { color: theme.colors.onSurfaceVariant }]}>
         {valeur}
       </Text>
     </View>
   )
 }
 
-/**
- * Ce que dit le topic `availability` du broker : l'objet est-il joignable.
- * C'est une question différente de la fraîcheur de ses mesures.
- */
+function Mesure({ libelle, valeur }: { libelle: string; valeur: string }) {
+  const theme = useTheme()
+  return (
+    <View>
+      <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+        {libelle}
+      </Text>
+      <Text variant="displaySmall">{valeur}</Text>
+    </View>
+  )
+}
+
+// Inconnue : la réponse vient du cache, le bandeau du haut dit pourquoi.
+const FRAICHEUR: Record<Fraicheur, string> = {
+  recente: 'Récente',
+  ancienne: 'Ancienne',
+  inconnue: 'Inconnue',
+}
+
+/** Topic `availability` du broker : l'objet est-il joignable, pas ses mesures fraîches. */
 function disponibilite(valeur: string | null): string {
   if (valeur === null) return 'Inconnue'
   return valeur === 'offline' ? 'Déconnecté' : 'En ligne'
@@ -76,21 +88,32 @@ export default function EcranObjet() {
   const points = historique.data?.points ?? []
   const fraicheur = fraicheurAffichee(objet.is_stale, maintenant - dataUpdatedAt)
 
-  const ecouleMs = commande.envoyeeA === null ? 0 : maintenant - commande.envoyeeA
-  const enAttente =
-    commande.envoiEnCours ||
-    (commande.commande !== undefined && suiviEnCours(commande.commande.status, ecouleMs))
-  const suivi =
-    commande.commande === undefined
-      ? null
-      : libelleSuivi(commande.commande, ecouleMs) +
-        (enAttente && commande.suiviEnEchec ? '. Suivi momentanément injoignable' : '')
-  const erreurEnvoi =
-    commande.erreurEnvoi === null
-      ? null
-      : commande.erreurEnvoi instanceof ErreurApi
-        ? messageErreurEnvoi(commande.erreurEnvoi.code, commande.erreurEnvoi.statut)
-        : "Erreur inattendue pendant l'envoi"
+  const statut = ligneStatut({
+    enLigne,
+    envoiEnCours: commande.envoiEnCours,
+    erreurEnvoi:
+      commande.erreurEnvoi === null
+        ? null
+        : commande.erreurEnvoi instanceof ErreurApi
+          ? messageErreurEnvoi(commande.erreurEnvoi.code, commande.erreurEnvoi.statut)
+          : "Erreur inattendue pendant l'envoi",
+    commande: commande.commande,
+    ecouleMs: commande.envoyeeA === null ? 0 : maintenant - commande.envoyeeA,
+    depuisReponseMs: maintenant - commande.reponseA,
+  })
+
+  const echecHistorique = historique.isError || historique.failureCount > 0
+  // Chargement, échec et absence de tranche ne se disent pas pareil : annoncer
+  // « aucune tranche » sur un échec réseau a déjà fait chercher un bug du job.
+  const legendeHistorique = historique.isPending
+    ? "Chargement de l'historique"
+    : echecHistorique
+      ? points.length === 0
+        ? 'Historique indisponible'
+        : 'Historique non actualisé'
+      : points.length === 0
+        ? 'Première tranche après 5 min de mesures'
+        : `Par tranches de 5 min, du ${dateEtHeure(points[0]?.at ?? null)} au ${dateEtHeure(points[points.length - 1]?.at ?? null)}`
 
   return (
     <>
@@ -116,94 +139,63 @@ export default function EcranObjet() {
           }
         >
           <View style={styles.mesures}>
-            <View>
-              <Text variant="labelMedium">Température</Text>
-              <Text variant="displaySmall">
-                {objet.temperature === null
+            <Mesure
+              libelle="Température"
+              valeur={
+                objet.temperature === null
                   ? '—'
-                  : `${objet.temperature.value} ${objet.temperature.unit}`}
-              </Text>
-            </View>
-            <View>
-              <Text variant="labelMedium">CO2</Text>
-              <Text variant="displaySmall">
-                {objet.co2 === null ? '—' : `${objet.co2.value} ${objet.co2.unit}`}
-              </Text>
-            </View>
+                  : `${objet.temperature.value} ${objet.temperature.unit}`
+              }
+            />
+            <Mesure
+              libelle="CO2"
+              valeur={objet.co2 === null ? '—' : `${objet.co2.value} ${objet.co2.unit}`}
+            />
           </View>
 
-          <Divider style={styles.separateur} />
-          <Ligne libelle="Salle" valeur={salle.label} />
-          <Ligne libelle="Dernière mesure" valeur={depuis(objet.recorded_at, maintenant)} />
-          {/* Ancienne et déconnecté sont deux problèmes distincts : un capteur
-              peut être en ligne et ne plus rien mesurer. Et une réponse gardée
-              en cache ne permet plus d'affirmer quoi que ce soit du capteur. */}
-          <Ligne libelle="Fraîcheur" valeur={libelleFraicheur(fraicheur)} />
-          <Ligne libelle="Disponibilité" valeur={disponibilite(objet.availability)} />
+          <View>
+            <Ligne libelle="Salle" valeur={salle.label} />
+            <Ligne libelle="Dernière mesure" valeur={depuis(objet.recorded_at, maintenant)} />
+            {/* Ancienne et déconnecté sont deux problèmes distincts : un capteur
+                peut être en ligne et ne plus rien mesurer. */}
+            <Ligne libelle="Fraîcheur" valeur={FRAICHEUR[fraicheur]} />
+            <Ligne libelle="Disponibilité" valeur={disponibilite(objet.availability)} />
+          </View>
 
-          <Divider style={styles.separateur} />
           <PanneauVentilation
             etatReel={objet.ventilation}
-            bloque={!enLigne || enAttente}
-            explication={
-              !enLigne
-                ? 'Téléphone hors ligne, les commandes sont bloquées. Rien ne partira tout seul au retour du réseau.'
-                : enAttente
-                  ? 'Une commande est en cours, les boutons reviennent à son résultat.'
-                  : null
-            }
-            titreSuivi={commande.intention === null ? null : libelleIntention(commande.intention)}
-            libelleSuivi={suivi}
-            envoiEnCours={commande.envoiEnCours}
-            erreur={erreurEnvoi}
+            bloque={!enLigne || statut?.ton === 'attente'}
+            statut={statut}
             onCommander={commande.envoyer}
           />
 
-          <Divider style={styles.separateur} />
-
-          <Text variant="titleSmall" style={styles.titreHistorique}>
-            Historique
-          </Text>
-          {/* Trois raisons différentes de n'avoir aucun point, qu'il ne faut pas
-              présenter de la même façon. L'appel n'est pas encore revenu, il a
-              échoué, ou il a réussi et le job n'a pas encore produit de tranche.
-              Annoncer la troisième dans les deux premiers cas est un mensonge :
-              on l'a fait, et ça a envoyé chercher un problème de job là où
-              c'était le réseau. */}
-          {historique.isPending ? (
-            <Text variant="bodySmall" style={styles.sousTitre}>
-              Chargement de l&apos;historique.
-            </Text>
-          ) : historique.isError || historique.failureCount > 0 ? (
-            <View style={styles.sousTitre}>
-              <Text variant="bodySmall">
-                L&apos;historique n&apos;a pas pu être chargé. Les valeurs ci-dessus
-                viennent d&apos;un autre appel, elles restent valables.
+          <View style={styles.historique}>
+            <View>
+              <View style={styles.enteteHistorique}>
+                <Text variant="titleMedium">Historique</Text>
+                {echecHistorique ? (
+                  <Button
+                    compact
+                    mode="text"
+                    onPress={() => void historique.refetch()}
+                    accessibilityLabel="Recharger l'historique"
+                  >
+                    Réessayer
+                  </Button>
+                ) : null}
+              </View>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                {legendeHistorique}
               </Text>
-              <Button
-                compact
-                mode="text"
-                onPress={() => void historique.refetch()}
-                style={styles.reessayer}
-              >
-                Réessayer
-              </Button>
             </View>
-          ) : (
-            <Text variant="bodySmall" style={styles.sousTitre}>
-              {points.length === 0
-                ? "Aucune tranche pour ce capteur. La première apparaît au bout de 5 minutes de mesures."
-                : `${points.length} tranches de 5 minutes, de ${dateEtHeure(points[0]?.at ?? null)} à ${dateEtHeure(points[points.length - 1]?.at ?? null)}.`}
-            </Text>
-          )}
-
-          <Courbe
-            titre="Température"
-            unite="°C"
-            decimales={1}
-            valeurs={points.map((point) => point.temperature)}
-          />
-          <Courbe titre="CO2" unite="ppm" valeurs={points.map((point) => point.co2)} />
+            <Courbe
+              titre="Température"
+              unite="°C"
+              decimales={1}
+              valeurs={points.map((point) => point.temperature)}
+            />
+            <Courbe titre="CO2" unite="ppm" valeurs={points.map((point) => point.co2)} />
+          </View>
         </ScrollView>
       </View>
     </>
@@ -212,12 +204,15 @@ export default function EcranObjet() {
 
 const styles = StyleSheet.create({
   ecran: { flex: 1 },
-  contenu: { padding: 16 },
-  mesures: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  separateur: { marginBottom: 8 },
-  ligne: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, gap: 16 },
+  contenu: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32, gap: 32 },
+  mesures: { flexDirection: 'row', justifyContent: 'space-between' },
+  ligne: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, gap: 16 },
   valeur: { flexShrink: 1, textAlign: 'right' },
-  titreHistorique: { marginTop: 8 },
-  sousTitre: { marginBottom: 12 },
-  reessayer: { alignSelf: 'flex-start', marginTop: 4 },
+  historique: { gap: 16 },
+  enteteHistorique: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 36,
+  },
 })
