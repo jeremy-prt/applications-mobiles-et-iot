@@ -10,7 +10,7 @@
   "editable": true,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "version": 4,
+  "version": 5,
   "refresh": "10s",
   "time": {
     "from": "now-1h",
@@ -393,6 +393,71 @@
       "interval": "1m"
     },
     {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Messages reçus du broker, en direct",
+      "description": "Le moment exact où chaque message arrive du broker, avant toute vérification. C'est ce qui s'arrête net quand le backend est coupé, et ce qui repart d'un bloc à la reconnexion : le pic correspond à ce que le broker avait gardé pendant l'absence. Le panneau du dessus montre les mesures consolidées, qui sont écrites par lots toutes les 5 secondes, donc avec un décalage. Pas de 15 secondes pour voir une coupure courte.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "interval": "15s",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "refId": "A",
+          "queryType": "range",
+          "expr": "sum by (deviceId) (count_over_time({service_name=\"backend\"} | json | eventType=\"message_recu\" | deviceId=~\"$capteur\" [$__interval]))",
+          "legendFormat": "{{deviceId}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            },
+            "showPoints": "never",
+            "barAlignment": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "noValue": "0",
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
       "id": 2,
       "type": "row",
       "title": "Qu'est-ce qui a été refusé, et pourquoi ?",
@@ -401,7 +466,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 22
       },
       "panels": []
     },
@@ -418,7 +483,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 23
       },
       "targets": [
         {
@@ -483,7 +548,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 23
       },
       "targets": [
         {
@@ -548,7 +613,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 31
       },
       "targets": [
         {
@@ -582,7 +647,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 40
       },
       "panels": []
     },
@@ -599,7 +664,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 41
       },
       "targets": [
         {
@@ -633,7 +698,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 42
+        "y": 51
       },
       "panels": []
     },
@@ -650,7 +715,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 43
+        "y": 52
       },
       "targets": [
         {
@@ -725,7 +790,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 43
+        "y": 52
       },
       "targets": [
         {
@@ -796,7 +861,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 43
+        "y": 52
       },
       "targets": [
         {
@@ -871,7 +936,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 43
+        "y": 52
       },
       "targets": [
         {
@@ -946,7 +1011,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 47
+        "y": 56
       },
       "targets": [
         {
@@ -980,7 +1045,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 65
       },
       "panels": []
     },
@@ -997,7 +1062,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 57
+        "y": 66
       },
       "targets": [
         {
