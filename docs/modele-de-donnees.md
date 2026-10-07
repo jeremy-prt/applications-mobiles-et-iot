@@ -52,15 +52,38 @@ déconnecté d'un objet connecté qui ne mesure plus. `ventilation` vient du top
 c'est la seule source de l'état réel de la ventilation, car une commande acceptée ne suffit pas
 à le déduire.
 
-`commands` garde l'état de chaque demande : en attente, exécutée, en échec, expirée, ou
-résultat inconnu. L'attente est en base et pas en mémoire, donc si le backend redémarre pendant
-qu'une commande est en cours, une tâche au démarrage requalifie les commandes en attente dont
-la date d'expiration est passée. Un minuteur en mémoire disparaîtrait avec le process.
+`commands` a pour clé primaire le `command_id` choisi par le mobile. L'insertion s'écrit
+`ON CONFLICT (command_id) DO NOTHING`, donc deux envois simultanés de la même demande ne créent
+qu'une ligne. Une contrainte limite `status` à `pending`, `executed`, `rejected` et `unknown`.
+Un résultat n'est appliqué que si la commande est encore `pending` ou `unknown`, par une mise à
+jour conditionnelle : une commande définitive ne change plus.
+
+L'attente est en base et pas en mémoire. À chaque passage, le job passe en `unknown` les
+commandes `pending` demandées il y a plus de 15 secondes. Un redémarrage du backend ne perd
+donc aucune attente, là où un minuteur en mémoire disparaîtrait avec le process. L'index
+partiel `commands_en_attente`, sur `requested_at` et limité aux `pending`, garde cette
+recherche courte quel que soit le nombre de commandes passées.
 
 Le `room_id` présent dans les mesures n'est qu'une indication de départ. Une fois l'objet
 enregistré, c'est `devices` qui fait foi, donc une réaffectation faite depuis l'application
 n'est pas écrasée par le message suivant. C'est ce que prévoit le contrat du kit, et ce que
 vérifie le scénario R10.
+
+## Les commandes
+
+| Colonne | Ce que c'est | À quoi elle sert |
+|---|---|---|
+| `command_id` | Identifiant choisi par le mobile, clé primaire | Reconnaître un renvoi, et relier la commande à son résultat et à ses traces |
+| `device_id` | L'objet visé, référence vers `devices` | Vérifier que le résultat vient bien de cet objet |
+| `action` | Toujours `set_ventilation` | La seule action du contrat du kit |
+| `enabled` | La consigne, activer ou arrêter | Distinguer un renvoi d'un conflit sur le même `command_id` |
+| `status` | `pending`, `executed`, `rejected` ou `unknown` | Le suivi lu par le mobile |
+| `reason` | La raison donnée par l'objet quand il refuse | L'afficher telle quelle |
+| `requested_at` | L'heure d'acceptation par le backend | Calculer l'attente maximale et le retard |
+| `published_at` | L'heure de l'accusé du broker, vide sinon | Distinguer une commande jamais partie d'une commande restée sans réponse |
+| `expires_at` | 10 secondes après la demande | Envoyée à l'objet, qui refuse d'exécuter après |
+| `result_at` | L'heure de réception du résultat | Dater la confirmation |
+| `late` | Vrai si le résultat est arrivé après l'attente maximale | Signaler une confirmation tardive |
 
 ## La zone brute, dans MongoDB
 
@@ -72,7 +95,7 @@ ci-dessus. Voir `docs/decisions/J2/08-base-brute-mongodb.md`.
 |---|---|
 | `topic` | Le topic MQTT, tel quel |
 | `device_id` | Extrait du topic, pas du corps : c'est du routage, pas une règle métier |
-| `genre` | `telemetry`, `state`, `availability`, ou `inconnu` |
+| `genre` | `telemetry`, `state`, `availability`, `result`, ou `inconnu` |
 | `payload` | Le message décodé. Absent quand ce n'était pas du JSON |
 | `texte` | Le texte original, gardé seulement quand on n'a pas su le décoder |
 | `received_at` | Heure de réception par le backend |

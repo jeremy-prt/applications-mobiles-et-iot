@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { STATUTS_COMMANDE } from '@/lib/commandes'
 
 /**
  * Les réponses de l'API sont validées à l'arrivée. Les types TypeScript
@@ -18,7 +19,8 @@ export const Objet = z.object({
   recorded_at: z.string().nullable(),
   is_stale: z.boolean(),
   availability: z.string().nullable(),
-  ventilation: z.boolean().nullable(),
+  // Absent, il vaut inconnu plutôt que de rendre toute la réponse invalide.
+  ventilation: z.boolean().nullable().default(null),
 })
 export type Objet = z.infer<typeof Objet>
 
@@ -59,3 +61,18 @@ export const ReponseHistorique = z.object({
   truncated: z.boolean(),
   points: z.array(Point),
 })
+
+export const Commande = z.object({
+  command_id: z.string(),
+  device_id: z.string(),
+  action: z.string(),
+  enabled: z.boolean(),
+  status: z.enum(STATUTS_COMMANDE),
+  reason: z.string().nullable(),
+  requested_at: z.string(),
+  published_at: z.string().nullable(),
+  expires_at: z.string(),
+  result_at: z.string().nullable(),
+  late: z.boolean(),
+})
+export type Commande = z.infer<typeof Commande>

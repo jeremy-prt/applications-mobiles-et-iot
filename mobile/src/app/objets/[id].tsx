@@ -2,11 +2,19 @@ import { Stack, useLocalSearchParams } from 'expo-router'
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { Button, Divider, Text, useTheme } from 'react-native-paper'
 import { ErreurApi } from '@/api/client'
+import { useCommandeVentilation } from '@/api/commandes'
 import { useObjet } from '@/api/salles'
 import { useHistorique } from '@/api/telemetrie'
 import { BandeauDonnees } from '@/components/bandeau'
 import { Courbe } from '@/components/courbe'
 import { EtatChargement, EtatErreur, EtatHorsLigne, EtatVide } from '@/components/etats'
+import { PanneauVentilation } from '@/components/ventilation'
+import {
+  libelleIntention,
+  libelleSuivi,
+  messageErreurEnvoi,
+  suiviEnCours,
+} from '@/lib/commandes'
 import { dateEtHeure, depuis } from '@/lib/dates'
 import { fraicheurAffichee, libelleFraicheur } from '@/lib/fraicheur'
 import { useMaintenant } from '@/lib/horloge'
@@ -32,15 +40,6 @@ function disponibilite(valeur: string | null): string {
   return valeur === 'offline' ? 'Déconnecté' : 'En ligne'
 }
 
-/**
- * L'état réel de la ventilation vient du topic `state`, pas d'une commande
- * envoyée. Tant qu'il n'a rien annoncé, on ne le devine pas.
- */
-function ventilation(valeur: boolean | null): string {
-  if (valeur === null) return 'Inconnue'
-  return valeur ? 'En marche' : 'À l’arrêt'
-}
-
 /** Troisième niveau du parcours : le détail d'un objet et son historique. */
 export default function EcranObjet() {
   const theme = useTheme()
@@ -49,6 +48,7 @@ export default function EcranObjet() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { data, isPending, isError, error, refetch, isRefetching, dataUpdatedAt, fetchStatus, failureCount } = useObjet(id)
   const historique = useHistorique(id)
+  const commande = useCommandeVentilation(id)
 
   if (isPending && fetchStatus === 'paused') {
     return <EtatHorsLigne onReessayer={() => void refetch()} />
@@ -75,6 +75,22 @@ export default function EcranObjet() {
   const { objet, salle } = data
   const points = historique.data?.points ?? []
   const fraicheur = fraicheurAffichee(objet.is_stale, maintenant - dataUpdatedAt)
+
+  const ecouleMs = commande.envoyeeA === null ? 0 : maintenant - commande.envoyeeA
+  const enAttente =
+    commande.envoiEnCours ||
+    (commande.commande !== undefined && suiviEnCours(commande.commande.status, ecouleMs))
+  const suivi =
+    commande.commande === undefined
+      ? null
+      : libelleSuivi(commande.commande, ecouleMs) +
+        (enAttente && commande.suiviEnEchec ? '. Suivi momentanément injoignable' : '')
+  const erreurEnvoi =
+    commande.erreurEnvoi === null
+      ? null
+      : commande.erreurEnvoi instanceof ErreurApi
+        ? messageErreurEnvoi(commande.erreurEnvoi.code, commande.erreurEnvoi.statut)
+        : "Erreur inattendue pendant l'envoi"
 
   return (
     <>
@@ -124,7 +140,24 @@ export default function EcranObjet() {
               en cache ne permet plus d'affirmer quoi que ce soit du capteur. */}
           <Ligne libelle="Fraîcheur" valeur={libelleFraicheur(fraicheur)} />
           <Ligne libelle="Disponibilité" valeur={disponibilite(objet.availability)} />
-          <Ligne libelle="Ventilation" valeur={ventilation(objet.ventilation)} />
+
+          <Divider style={styles.separateur} />
+          <PanneauVentilation
+            etatReel={objet.ventilation}
+            bloque={!enLigne || enAttente}
+            explication={
+              !enLigne
+                ? 'Téléphone hors ligne, les commandes sont bloquées. Rien ne partira tout seul au retour du réseau.'
+                : enAttente
+                  ? 'Une commande est en cours, les boutons reviennent à son résultat.'
+                  : null
+            }
+            titreSuivi={commande.intention === null ? null : libelleIntention(commande.intention)}
+            libelleSuivi={suivi}
+            envoiEnCours={commande.envoiEnCours}
+            erreur={erreurEnvoi}
+            onCommander={commande.envoyer}
+          />
 
           <Divider style={styles.separateur} />
 

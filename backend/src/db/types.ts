@@ -1,4 +1,5 @@
 import type { ColumnType, Generated } from 'kysely'
+import type { StatutCommande } from '../domain/commandes.ts'
 
 export interface RoomsTable {
   id: string
@@ -49,10 +50,27 @@ export interface DeviceStateTable {
   boot_id: string | null
 }
 
+type DateNullable = ColumnType<Date | null, Date | string | null | undefined, Date | string | null>
+
+export interface CommandsTable {
+  command_id: string
+  device_id: string
+  action: Generated<string>
+  enabled: boolean
+  status: ColumnType<StatutCommande, StatutCommande | undefined, StatutCommande>
+  reason: ColumnType<string | null, string | null | undefined, string | null>
+  requested_at: ColumnType<Date, Date | string, never>
+  published_at: DateNullable
+  expires_at: ColumnType<Date, Date | string, never>
+  result_at: DateNullable
+  late: ColumnType<boolean, boolean | undefined, boolean>
+}
+
 export interface Database {
   rooms: RoomsTable
   devices: DevicesTable
   telemetry: TelemetryTable
   telemetry_bucket: TelemetryBucketTable
   device_state: DeviceStateTable
+  commands: CommandsTable
 }

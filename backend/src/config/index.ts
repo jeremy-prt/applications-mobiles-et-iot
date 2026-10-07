@@ -41,6 +41,11 @@ const Config = z.object({
   RAW_RETENTION_DAYS: z.coerce.number().default(7),
   // Largeur d'une tranche d'agrégat, en minutes.
   AGGREGATE_BUCKET_MINUTES: z.coerce.number().default(5),
+  // Passé ce délai, l'objet refuse d'exécuter la commande.
+  COMMAND_EXPIRES_SECONDS: z.coerce.number().default(10),
+  // Plus long que l'expiration : abandonner avant laisserait l'objet exécuter
+  // après notre abandon, et on afficherait un échec faux.
+  COMMAND_TIMEOUT_SECONDS: z.coerce.number().default(15),
 })
 
 const parsed = Config.safeParse(process.env)

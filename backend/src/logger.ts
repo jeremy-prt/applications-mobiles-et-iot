@@ -50,6 +50,14 @@ export type EventType =
   | 'abonnement'
   | 'api_demarree'
   | 'arret_demande'
+  | 'commande_acceptee'
+  | 'commande_refusee'
+  | 'commande_publiee'
+  | 'commande_non_publiee'
+  | 'commande_resultat'
+  | 'commande_sans_reponse'
+  | 'commande_doublon'
+  | 'resultat_rejete'
 
 /** L'issue d'un traitement, quand elle a un sens pour l'événement. */
 export type Statut =
@@ -61,6 +69,10 @@ export type Statut =
   | 'abandonne'
   | 'perdu'
   | 'retabli'
+  | 'ignore'
+  | 'executee'
+  | 'refusee_par_l_objet'
+  | 'sans_reponse'
 
 /** Les motifs de refus. Codes fixes, pour pouvoir compter par motif. */
 export type Motif =
@@ -77,6 +89,13 @@ export type Motif =
   | 'plus_ancienne_que_l_etat_courant'
   | 'aucune_mesure_depuis_le_seuil'
   | 'erreur_technique'
+  | 'requete_invalide'
+  | 'objet_hors_ligne'
+  | 'command_id_en_conflit'
+  | 'commande_inconnue'
+  | 'refus_de_l_objet'
+  | 'delai_depasse'
+  | 'publication_echouee'
 
 export interface Evenement {
   eventType: EventType
@@ -89,6 +108,8 @@ export interface Evenement {
    */
   eventId?: string
   topic?: string
+  /** La commande concernée : une seule recherche sur lui donne tout son parcours. */
+  commandId?: string | null
   status?: Statut
   /**
    * Pourquoi le message a été refusé, sous forme de code stable et non de

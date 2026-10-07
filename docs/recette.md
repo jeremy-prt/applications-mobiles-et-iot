@@ -13,11 +13,11 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 | R02 | Message invalide | réussi | Aucune mesure créée, le service répond toujours, et le message fautif est conservé dans la zone brute avec son motif. Complété en J3 par le JSON illisible et la valeur impossible | Fiche R02, et `docs/J3.md` scénarios 3a à 3c |
 | R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03, et `docs/J3.md` scénarios 4 et 5 |
 | R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online`. Depuis J3 la bascule est aussi tracée | Fiche R04, et `docs/J3.md` scénario 6 |
-| R05 | Téléphone hors ligne | partiel | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée. Le blocage d'une commande hors ligne attend J4 | `docs/preuves/J2-hors-ligne.png` |
+| R05 | Téléphone hors ligne | partiel | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée. Le blocage d'une commande hors ligne est codé en J4, pas encore exercé sur l'iPhone | `docs/preuves/J2-hors-ligne.png` |
 | R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini. L'arrière-plan et les abonnements dupliqués restent à exercer sur l'appareil | Fiche R06 |
 | R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07, et `docs/J3.md` scénario 7 |
-| R08 | Commande exécutée | à faire | | |
-| R09 | Commande sans réponse | à faire | | |
+| R08 | Commande exécutée | partiel | Par l'API : `pending`, puis `executed` avec le `command_id`, et le CO2 baisse. Le parcours depuis l'iPhone reste à faire | Fiche R08 |
+| R09 | Commande sans réponse | partiel | Par l'API : `pending` jusqu'à 15 s, `unknown` à 20 s, jamais `failed`. Une réponse tardive est appliquée avec `late` à vrai. L'affichage sur l'iPhone reste à voir | Fiche R09 |
 | R10 | Association et permission caméra | à faire | Le scan de QR n'est plus planifié par aucune journée depuis la réécriture du sujet, mais reste dans le périmètre | |
 | R11 | Autorisation | à faire | Décalé : les droits ne sont plus au programme de J3 depuis la réécriture du sujet | |
 | R12 | Alerte et retour à la normale | à faire | | |
@@ -193,6 +193,44 @@ docker compose up -d --wait mosquitto
 - Résultat observé et preuve : pendant la coupure, `/health` répond `{"status":"ok","db":true}` et `/rooms` répond 200, avec « reconnexion au broker » toutes les 2 secondes dans les traces. Après la remise en marche, l'ingestion reprend avec 15 mesures dans les 10 secondes suivantes, soit le rythme nominal des trois capteurs
 - Conclusion : réussi
 - Correction ou limite identifiée : le simulateur suspend ses mesures pendant la coupure du broker, donc rien n'est perdu. Ce comportement vient du kit et non d'une garantie de notre backend, il ne faut pas l'annoncer comme une reprise de messages manqués. De notre côté, la protection est la session persistante `clean: false`, qui n'a pas été mise à l'épreuve ici puisqu'il n'y avait rien à rejouer
+
+## R08, commande exécutée
+
+- Scénario et responsable : R08, Jérémy Perret
+- Version du projet et environnement : J4, macOS arm64, Docker Compose du dépôt, kit non modifié
+- Conditions initiales et paramètres : `sensor-001` en ligne, ventilation arrêtée, expiration 10 secondes, attente maximale 15 secondes
+- Action effectuée :
+
+```sh
+curl -X POST http://127.0.0.1:3000/devices/sensor-001/commands \
+  -H 'content-type: application/json' -d '{"command_id":"j4-preuve1-on","enabled":true}'
+curl http://127.0.0.1:3000/commands/j4-preuve1-on
+docker compose logs backend | grep '"j4-preuve1-on"'
+```
+
+- Résultat attendu : suivi de l'attente puis d'un retour confirmé, le CO2 baisse, un accusé de transport seul ne vaut pas preuve
+- Résultat observé et preuve : le POST répond 202 `pending`, avec `published_at` 5 ms après la demande. Ce `published_at` est l'accusé du broker, la commande reste `pending` à ce stade. `GET /commands/j4-preuve1-on` donne ensuite `executed`, résultat reçu 47 ms après la demande, `late` faux. Dans `GET /rooms`, `ventilation` passe de faux à vrai et le CO2 de 759 à 651, 515 puis 422 ppm. Les traces donnent le parcours : `commande_acceptee` 12:05:31.620, `commande_publiee` .623, `message_recu` .666, `commande_resultat` 12:05:32.775
+- Conclusion : partiel. La chaîne est prouvée depuis l'API, pas encore depuis l'iPhone
+- Correction ou limite identifiée : le statut `executed` est visible au passage suivant du job, donc 0 à 5 secondes après la réception du résultat
+
+## R09, commande sans réponse
+
+- Scénario et responsable : R09, Jérémy Perret
+- Version du projet et environnement : J4, macOS arm64, Docker Compose du dépôt, kit non modifié
+- Conditions initiales et paramètres : `sensor-001` en ligne, attente maximale 15 secondes, job de consolidation toutes les 5 secondes
+- Action effectuée :
+
+```sh
+docker compose --profile tools run --rm tools incident sensor-001 no-response
+curl -X POST http://127.0.0.1:3000/devices/sensor-001/commands \
+  -H 'content-type: application/json' -d '{"command_id":"j4-preuve2-noresp","enabled":false}'
+docker compose --profile tools run --rm tools incident sensor-001 respond
+```
+
+- Résultat attendu : un délai borné conduit à un échec ou à un résultat inconnu, le mobile n'affiche jamais « activé » sans confirmation, le comportement d'une réponse tardive est documenté
+- Résultat observé et preuve : `pending` à 5, 10 et 15 secondes, `unknown` à 20 secondes. Traces : `commande_acceptee` 12:06:04.775, `commande_publiee` .777, `commande_sans_reponse` avec `reason` `delai_depasse` à 12:06:24.701. Un résultat publié ensuite à la main sur le topic `results` passe la commande en `executed` avec `late` à vrai. Le même résultat rejoué donne `commande_doublon` et ne change rien. Un `command_id` inconnu donne `resultat_rejete` avec `reason` `commande_inconnue`
+- Conclusion : partiel. Le comportement du backend est prouvé. Côté mobile, le libellé « Sans réponse, résultat inconnu » est testé en unitaire, pas encore vu sur l'iPhone. L'écran n'affiche que l'état réel lu dans `GET /rooms`, jamais l'intention
+- Correction ou limite identifiée : on choisit `unknown` et pas `failed`, car sans réponse on ne sait pas si l'objet a agi. La bascule a lieu entre 15 et 20 secondes, au rythme du job. Détail dans `docs/decisions/J4/16-commande-sans-reponse-et-delai.md`
 
 ## Fiche vierge
 

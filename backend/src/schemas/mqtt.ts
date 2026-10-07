@@ -69,3 +69,40 @@ export const Disponibilite = z.object({
   reason: z.string().min(1).optional(),
 })
 export type Disponibilite = z.infer<typeof Disponibilite>
+
+/** Le format imposé par le contrat du kit pour un `command_id`. */
+export const CommandId = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/)
+
+/** Ce que le backend publie sur `campus/v1/devices/{device_id}/commands`. */
+export interface CommandeMqtt {
+  schema_version: 1
+  command_id: string
+  action: 'set_ventilation'
+  enabled: boolean
+  expires_at: string
+}
+
+/**
+ * Le résultat d'une commande. Le `command_id` est exigé : un rejet sans
+ * corrélation possible, que le contrat du kit prévoit, ne peut être rattaché
+ * à aucune commande.
+ */
+export const Resultat = z.discriminatedUnion('status', [
+  z.object({
+    schema_version: z.literal(1),
+    device_id: z.string().min(1),
+    command_id: z.string().min(1),
+    status: z.literal('executed'),
+    executed_at: z.iso.datetime({ offset: true }),
+    ventilation: z.boolean(),
+  }),
+  z.object({
+    schema_version: z.literal(1),
+    device_id: z.string().min(1),
+    command_id: z.string().min(1),
+    status: z.literal('rejected'),
+    reason: z.string().min(1),
+    reported_at: z.iso.datetime({ offset: true }),
+  }),
+])
+export type Resultat = z.infer<typeof Resultat>

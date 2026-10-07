@@ -53,5 +53,7 @@ export const OPTIONS_PERSISTANCE = {
      */
     shouldDehydrateQuery: (requete: { state: { data: unknown } }) =>
       requete.state.data !== undefined,
+    // Une commande écrite sur le disque serait rejouée au prochain lancement.
+    shouldDehydrateMutation: () => false,
   },
 } as const

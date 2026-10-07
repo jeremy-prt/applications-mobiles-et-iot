@@ -15,7 +15,7 @@ import { logger } from '../logger.ts'
  */
 
 /** Ce que le job sait faire d'un message, déduit du seul topic. */
-export type Genre = 'telemetry' | 'state' | 'availability' | 'inconnu'
+export type Genre = 'telemetry' | 'state' | 'availability' | 'result' | 'inconnu'
 
 /** `en_attente` inclut les messages différés : l'objet n'existe pas encore. */
 export type Statut = 'en_attente' | 'traite' | 'rejete' | 'abandonne'

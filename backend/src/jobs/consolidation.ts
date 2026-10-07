@@ -2,7 +2,7 @@ import { ObjectId } from 'mongodb'
 import { config } from '../config/index.ts'
 import { logger, tracer, alerter } from '../logger.ts'
 import { messagesBruts, type MessageBrut, type Statut } from '../db/mongo.ts'
-import { Telemetrie, Etat, Disponibilite } from '../schemas/mqtt.ts'
+import { Telemetrie, Etat, Disponibilite, Resultat } from '../schemas/mqtt.ts'
 import {
   enregistrerMesure,
   enregistrerEtat,
@@ -15,6 +15,8 @@ import { recalculerTranches, purgerTranchesAnciennes } from '../db/agregats.ts'
 import { tranchesTouchees } from '../domain/agregats.ts'
 import { detecterBascules, vientDeLaSessionAnnoncee } from '../domain/surveillance.ts'
 import { estDansLAvenir } from '../domain/fraicheur.ts'
+import { deciderResultat, limiteSansReponse } from '../domain/commandes.ts'
+import { lireCommande, appliquerResultat, abandonnerSansReponse } from '../db/commandes.ts'
 
 /**
  * Le job de consolidation. Il relit la zone brute dans l'ordre d'arrivée,
@@ -333,6 +335,143 @@ async function traiterDisponibilite(
   else compteurs.abandonnes += 1
 }
 
+/**
+ * Applique le résultat d'une commande, corrélé par son `command_id`. Le kit le
+ * demande indépendamment des accusés MQTT : seul ce message dit que l'objet a
+ * agi.
+ */
+async function traiterResultat(
+  doc: MessageBrut & { _id: ObjectId },
+  compteurs: Compteurs,
+): Promise<void> {
+  const rejeter = async (
+    reason: 'schema_invalide' | 'identite_incoherente' | 'commande_inconnue',
+    motif: string,
+    details: Record<string, unknown>,
+  ) => {
+    await marquer(doc._id, 'rejete', motif)
+    alerter(
+      { eventType: 'resultat_rejete', eventId: doc.event_id, deviceId: doc.device_id, topic: doc.topic, status: 'rejete', reason, ...details },
+      `résultat rejeté, ${motif}`,
+    )
+    compteurs.rejetes += 1
+  }
+
+  const parsed = Resultat.safeParse(doc.payload)
+  if (!parsed.success) {
+    const corps = doc.payload as { command_id?: unknown } | null
+    return rejeter('schema_invalide', 'résultat non conforme au contrat', {
+      commandId: typeof corps?.command_id === 'string' ? corps.command_id : null,
+      issues: parsed.error.issues,
+    })
+  }
+  const resultat = parsed.data
+  const commandId = resultat.command_id
+
+  if (doc.device_id !== resultat.device_id) {
+    return rejeter('identite_incoherente', 'identifiant du topic et du message différents', {
+      commandId,
+      deviceIdRevendique: resultat.device_id,
+    })
+  }
+
+  const commande = await lireCommande(commandId)
+  if (commande === undefined) {
+    return rejeter('commande_inconnue', 'aucune commande avec ce command_id', { commandId })
+  }
+  // Un objet ne répond que pour ses propres commandes.
+  if (commande.device_id !== resultat.device_id) {
+    return rejeter('identite_incoherente', 'résultat envoyé par un autre objet que le destinataire', {
+      commandId,
+      deviceIdDestinataire: commande.device_id,
+    })
+  }
+
+  const decision = deciderResultat(
+    commande.status,
+    resultat.status,
+    commande.requested_at,
+    doc.received_at,
+    config.COMMAND_TIMEOUT_SECONDS,
+  )
+  const applique =
+    decision.effet === 'appliquer' &&
+    (await appliquerResultat(commandId, {
+      status: decision.status,
+      reason: resultat.status === 'rejected' ? resultat.reason : null,
+      result_at: doc.received_at,
+      late: decision.late,
+    }))
+
+  if (!applique) {
+    await marquer(doc._id, 'traite', 'doublon écarté')
+    alerter(
+      {
+        eventType: 'commande_doublon',
+        eventId: doc.event_id,
+        commandId,
+        deviceId: resultat.device_id,
+        topic: doc.topic,
+        status: 'ignore',
+        reason: 'doublon',
+        origine: 'resultat_mqtt',
+        statutConserve: commande.status,
+      },
+      'résultat déjà appliqué, ignoré',
+    )
+    compteurs.doublons += 1
+    return
+  }
+
+  await marquer(doc._id, 'traite')
+  const evenement = {
+    eventType: 'commande_resultat' as const,
+    eventId: doc.event_id,
+    commandId,
+    deviceId: resultat.device_id,
+    topic: doc.topic,
+    enRetard: decision.late,
+    statutPrecedent: commande.status,
+    // Le délai entre la demande et la réponse, lisible sans croiser deux lignes.
+    delaiMs: doc.received_at.getTime() - commande.requested_at.getTime(),
+  }
+  if (resultat.status === 'executed') {
+    tracer({ ...evenement, status: 'executee', ventilation: resultat.ventilation }, 'commande exécutée')
+  } else {
+    alerter(
+      { ...evenement, status: 'refusee_par_l_objet', reason: 'refus_de_l_objet', raisonObjet: resultat.reason },
+      'commande refusée par l objet',
+    )
+  }
+  compteurs.traites += 1
+}
+
+/**
+ * Abandonne les commandes restées sans réponse au-delà de l'attente maximale.
+ * Appelé après les résultats du passage, pour qu'une réponse déjà arrivée
+ * dans la zone brute soit appliquée avant d'abandonner sa commande.
+ */
+export async function abandonnerCommandes(): Promise<void> {
+  const abandonnees = await abandonnerSansReponse(
+    limiteSansReponse(new Date(), config.COMMAND_TIMEOUT_SECONDS),
+  )
+  for (const c of abandonnees) {
+    alerter(
+      {
+        eventType: 'commande_sans_reponse',
+        commandId: c.command_id,
+        deviceId: c.device_id,
+        status: 'sans_reponse',
+        reason: 'delai_depasse',
+        // Distingue une commande jamais partie d'une commande restée sans réponse.
+        publiee: c.published_at !== null,
+        attenteSecondes: config.COMMAND_TIMEOUT_SECONDS,
+      },
+      'commande sans réponse, statut inconnu',
+    )
+  }
+}
+
 /** Un passage du job. Exporté pour pouvoir le déclencher à la main. */
 export async function consolider(): Promise<Compteurs> {
   const compteurs: Compteurs = {
@@ -382,6 +521,8 @@ export async function consolider(): Promise<Compteurs> {
       await traiterEtat(doc, compteurs)
     } else if (doc.genre === 'availability') {
       await traiterDisponibilite(doc, compteurs)
+    } else if (doc.genre === 'result') {
+      await traiterResultat(doc, compteurs)
     } else {
       const motif = 'topic hors contrat'
       await marquer(doc._id, 'rejete', motif)
@@ -463,6 +604,7 @@ export function demarrerConsolidation(): () => void {
         // pendant les scénarios de doublon et de message invalide.
         tracer({ eventType: 'consolidation_passage', ...compteurs }, 'consolidation')
       }
+      await abandonnerCommandes()
       await surveillerFraicheur()
       await purgerTranchesAnciennes()
     } catch (err) {

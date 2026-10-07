@@ -7,12 +7,21 @@ import {
 import { z } from 'zod'
 import { sql } from 'kysely'
 import { config } from '../config/index.ts'
-import { logger } from '../logger.ts'
+import { logger, tracer, alerter, echouer, type Motif } from '../logger.ts'
 import { mongoRepond } from '../db/mongo.ts'
-import { brokerConnecte } from '../mqtt/index.ts'
+import { brokerConnecte, publierCommande } from '../mqtt/index.ts'
 import { db } from '../db/index.ts'
 import { estAncienne } from '../domain/fraicheur.ts'
+import { comparerDemande, dateExpiration } from '../domain/commandes.ts'
 import { lireHistorique, objetExiste } from '../db/historique.ts'
+import {
+  creerCommande,
+  lireCommande,
+  lireObjetCommandable,
+  marquerPubliee,
+  type Commande,
+} from '../db/commandes.ts'
+import { CommandId } from '../schemas/mqtt.ts'
 
 const Mesure = z.object({
   device_id: z.string(),
@@ -66,6 +75,48 @@ const Historique = z.object({
   points: z.array(Point),
 })
 
+const DemandeCommande = z.object({
+  command_id: CommandId,
+  enabled: z.boolean(),
+})
+
+const CommandeReponse = z.object({
+  command_id: z.string(),
+  device_id: z.string(),
+  action: z.string(),
+  enabled: z.boolean(),
+  status: z.enum(['pending', 'executed', 'rejected', 'unknown']),
+  reason: z.string().nullable(),
+  requested_at: z.string(),
+  published_at: z.string().nullable(),
+  expires_at: z.string(),
+  result_at: z.string().nullable(),
+  late: z.boolean(),
+})
+
+function versReponse(c: Commande): z.infer<typeof CommandeReponse> {
+  return {
+    command_id: c.command_id,
+    device_id: c.device_id,
+    action: c.action,
+    enabled: c.enabled,
+    status: c.status,
+    reason: c.reason,
+    requested_at: c.requested_at.toISOString(),
+    published_at: c.published_at?.toISOString() ?? null,
+    expires_at: c.expires_at.toISOString(),
+    result_at: c.result_at?.toISOString() ?? null,
+    late: c.late,
+  }
+}
+
+/**
+ * Le temps qu'on laisse au broker pour accuser réception avant de répondre au
+ * mobile. Au-delà la réponse part sans `published_at`, la publication continue
+ * et l'attente maximale de la commande la couvre.
+ */
+const ATTENTE_ACCUSE_MS = 2000
+
 const Salle = z.object({
   id: z.string(),
   label: z.string(),
@@ -77,6 +128,32 @@ export function creerServeur() {
   const app = Fastify({ loggerInstance: logger }).withTypeProvider<ZodTypeProvider>()
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)
+
+  // Sans ça, une requête invalide recevait la forme d'erreur de Fastify et pas
+  // celle de docs/api.md, sur laquelle le mobile s'appuie.
+  app.setErrorHandler((err: { statusCode?: number; message: string; validation?: unknown }, requete, reponse) => {
+    const code = err.statusCode ?? 500
+    if (code >= 500) {
+      requete.log.error({ err }, 'erreur interne')
+      return reponse.code(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Erreur interne' } })
+    }
+    if (requete.routeOptions.url === '/devices/:id/commands') {
+      const params = requete.params as { id?: string }
+      const corps = requete.body as { command_id?: unknown } | undefined
+      alerter(
+        {
+          eventType: 'commande_refusee',
+          deviceId: params.id ?? null,
+          commandId: typeof corps?.command_id === 'string' ? corps.command_id : null,
+          status: 'rejete',
+          reason: 'requete_invalide',
+          detail: err.message,
+        },
+        'commande refusée, requête invalide',
+      )
+    }
+    return reponse.code(code).send({ error: { code: 'INVALID_REQUEST', message: err.message } })
+  })
 
   /**
    * L'état réel de la chaîne, et pas seulement celui de la base.
@@ -218,6 +295,129 @@ export function creerServeur() {
         truncated: points.length === limit,
         points,
       }
+    },
+  )
+
+  app.post(
+    '/devices/:id/commands',
+    {
+      schema: {
+        params: z.object({ id: z.string().min(1) }),
+        body: DemandeCommande,
+        response: { 200: CommandeReponse, 202: CommandeReponse, 403: Erreur, 404: Erreur, 409: Erreur },
+      },
+    },
+    async (requete, reponse) => {
+      const deviceId = requete.params.id
+      const { command_id: commandId, enabled } = requete.body
+
+      const refuser = (http: 403 | 404 | 409, code: string, message: string, reason: Motif) => {
+        alerter({ eventType: 'commande_refusee', commandId, deviceId, status: 'rejete', reason, codeHttp: http }, 'commande refusée')
+        return reponse.code(http).send({ error: { code, message } })
+      }
+      const renvoi = (existante: Commande) => {
+        if (comparerDemande(existante, { device_id: deviceId, enabled }) === 'conflit') {
+          return refuser(409, 'COMMAND_ID_CONFLICT', 'Identifiant de commande déjà utilisé avec un autre contenu', 'command_id_en_conflit')
+        }
+        // Pas de nouvelle publication : l'objet exécuterait deux fois.
+        tracer(
+          { eventType: 'commande_doublon', commandId, deviceId, status: 'ignore', reason: 'doublon', origine: 'api', statutConserve: existante.status },
+          'commande déjà reçue, pas de nouvelle publication',
+        )
+        return reponse.code(200).send(versReponse(existante))
+      }
+
+      // Le renvoi est reconnu avant de regarder l'objet : une commande déjà
+      // acceptée reste lisible même si l'objet est passé hors ligne depuis.
+      const existante = await lireCommande(commandId)
+      if (existante !== undefined) return renvoi(existante)
+
+      const objet = await lireObjetCommandable(deviceId)
+      if (objet === undefined) return refuser(404, 'DEVICE_NOT_FOUND', 'Objet inconnu', 'objet_inconnu')
+      if (!objet.autorise) return refuser(403, 'DEVICE_NOT_AUTHORIZED', 'Objet non autorisé', 'objet_non_autorise')
+      // Le kit ne garde pas les commandes d'un objet absent : elle serait perdue.
+      if (objet.availability === 'offline') return refuser(409, 'DEVICE_OFFLINE', 'Objet hors ligne', 'objet_hors_ligne')
+
+      const maintenant = new Date()
+      const creee = await creerCommande({
+        command_id: commandId,
+        device_id: deviceId,
+        enabled,
+        requested_at: maintenant,
+        expires_at: dateExpiration(maintenant, config.COMMAND_EXPIRES_SECONDS),
+      })
+      if (creee === undefined) {
+        // Un renvoi simultané a inséré la même clé entre notre lecture et notre écriture.
+        const gagnante = await lireCommande(commandId)
+        if (gagnante !== undefined) return renvoi(gagnante)
+        throw new Error('commande introuvable après un conflit d insertion')
+      }
+      tracer(
+        { eventType: 'commande_acceptee', commandId, deviceId, status: 'accepte', enabled, expiresAt: creee.expires_at.toISOString() },
+        'commande acceptée',
+      )
+
+      let publieeA: Date | null = null
+      const publication = publierCommande(deviceId, {
+        schema_version: 1,
+        command_id: commandId,
+        action: 'set_ventilation',
+        enabled,
+        expires_at: creee.expires_at.toISOString(),
+      })
+        .then(async () => {
+          const accuseA = new Date()
+          await marquerPubliee(commandId, accuseA)
+          publieeA = accuseA
+          tracer(
+            {
+              eventType: 'commande_publiee',
+              commandId,
+              deviceId,
+              topic: `campus/v1/devices/${deviceId}/commands`,
+              status: 'accepte',
+              delaiAccuseMs: accuseA.getTime() - maintenant.getTime(),
+            },
+            'commande publiée, accusée par le broker',
+          )
+        })
+        .catch((err: unknown) =>
+          echouer(
+            { eventType: 'commande_non_publiee', commandId, deviceId, status: 'perdu', reason: 'publication_echouee', erreur: String(err) },
+            'échec de la publication de la commande',
+          ),
+        )
+      let minuteur: NodeJS.Timeout | undefined
+      await Promise.race([
+        publication,
+        new Promise((resoudre) => {
+          minuteur = setTimeout(resoudre, ATTENTE_ACCUSE_MS)
+        }),
+      ])
+      clearTimeout(minuteur)
+
+      // Pas de relecture en base : sous charge, le pool de 10 connexions est
+      // partagé avec la consolidation, chaque requête épargnée compte.
+      return reponse.code(202).send(versReponse({ ...creee, published_at: publieeA }))
+    },
+  )
+
+  app.get(
+    '/commands/:id',
+    {
+      schema: {
+        params: z.object({ id: z.string().min(1) }),
+        response: { 200: CommandeReponse, 404: Erreur },
+      },
+    },
+    async (requete, reponse) => {
+      const commande = await lireCommande(requete.params.id)
+      if (commande === undefined) {
+        return reponse
+          .code(404)
+          .send({ error: { code: 'COMMAND_NOT_FOUND', message: 'Commande inconnue' } })
+      }
+      return versReponse(commande)
     },
   )
 

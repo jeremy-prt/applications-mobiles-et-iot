@@ -2,11 +2,13 @@ import mqtt, { type IClientOptions } from 'mqtt'
 import { config } from '../config/index.ts'
 import { tracer, alerter, echouer, nouvelEventId } from '../logger.ts'
 import { messagesBruts, type Genre, type MessageBrut } from '../db/mongo.ts'
+import type { CommandeMqtt } from '../schemas/mqtt.ts'
 
 const TOPICS = {
   telemetry: 'campus/v1/devices/+/telemetry',
   state: 'campus/v1/devices/+/state',
   availability: 'campus/v1/devices/+/availability',
+  results: 'campus/v1/devices/+/results',
 } as const
 
 /** Extrait l'identifiant de l'objet du topic. Le corps du message n'est pas lu ici. */
@@ -19,6 +21,7 @@ function genreDuTopic(topic: string): Genre {
   if (topic.endsWith('/telemetry')) return 'telemetry'
   if (topic.endsWith('/state')) return 'state'
   if (topic.endsWith('/availability')) return 'availability'
+  if (topic.endsWith('/results')) return 'result'
   return 'inconnu'
 }
 
@@ -52,12 +55,17 @@ async function ecrireBrut(topic: string, payload: Buffer): Promise<void> {
     lisible = false
   }
 
+  // Lu sans être validé, comme le device_id du topic : c'est ce qui relie la
+  // réception d'un résultat au reste du parcours de sa commande dans les traces.
+  const corps = document.payload as { command_id?: unknown } | null | undefined
+  const commandId = genre === 'result' && typeof corps?.command_id === 'string' ? corps.command_id : undefined
+
   await messagesBruts().insertOne(document)
 
   // Première trace du parcours. Elle est écrite après l'insertion, pour ne pas
   // annoncer une réception qui n'a pas été conservée.
   tracer(
-    { eventType: 'message_recu', eventId, deviceId, topic, genre, octets: payload.byteLength, json: lisible },
+    { eventType: 'message_recu', eventId, deviceId, topic, genre, octets: payload.byteLength, json: lisible, commandId },
     'message reçu',
   )
 }
@@ -130,6 +138,7 @@ export async function demarrerMqtt() {
     [TOPICS.telemetry]: { qos },
     [TOPICS.state]: { qos },
     [TOPICS.availability]: { qos },
+    [TOPICS.results]: { qos },
   })
 
   for (const grant of grants) {
@@ -140,6 +149,18 @@ export async function demarrerMqtt() {
     tracer({ eventType: 'abonnement', topic: grant.topic, qos: grant.qos }, 'abonné')
   }
 
-
   return client
+}
+
+/**
+ * Publie une commande. En QoS 1, la promesse se résout à l'accusé du broker :
+ * la commande est alors publiée, ce qui ne dit encore rien de son exécution.
+ * Jamais retained, sinon l'objet la recevrait à chaque reconnexion.
+ */
+export async function publierCommande(deviceId: string, commande: CommandeMqtt): Promise<void> {
+  if (clientCourant === null) throw new Error('client MQTT non démarré')
+  await clientCourant.publishAsync(`campus/v1/devices/${deviceId}/commands`, JSON.stringify(commande), {
+    qos: 1,
+    retain: false,
+  })
 }

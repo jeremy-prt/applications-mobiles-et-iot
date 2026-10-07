@@ -101,6 +101,8 @@ services:
       CONSOLIDATION_INTERVAL_MS: 5000
       RAW_RETENTION_DAYS: 7
       AGGREGATE_BUCKET_MINUTES: 5
+      COMMAND_EXPIRES_SECONDS: 10
+      COMMAND_TIMEOUT_SECONDS: 15
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       # Sans adresse : le téléphone doit joindre l'API depuis le réseau local.

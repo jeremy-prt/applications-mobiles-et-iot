@@ -50,7 +50,7 @@ dans un contexte React. Le choix de chaque brique et ce qu'elle coûte sont dans
 ```
 backend/src/
   schemas/    schémas Zod : le format des messages et des requêtes
-  domain/     les règles : doublon, ordre des mesures, fraîcheur, tranches d'agrégat
+  domain/     les règles : doublon, ordre des mesures, fraîcheur, tranches d'agrégat, commandes
   db/         requêtes SQL, accès à la zone brute, migrations
   mqtt/       connexion au broker, abonnements, écriture du brut
   jobs/       le job de consolidation, et le script de rejeu
@@ -97,8 +97,8 @@ PostgreSQL sépare l'historique et l'état courant par `device_id`, et chaque tr
 | `campus/v1/devices/{device_id}/telemetry` | objet vers backend | non | Mesures, écrites dans l'historique |
 | `campus/v1/devices/{device_id}/state` | objet vers backend | oui | Ventilation et `boot_id` de la session |
 | `campus/v1/devices/{device_id}/availability` | objet ou broker vers backend | oui | Objet joignable ou non |
-| `campus/v1/devices/{device_id}/commands` | backend vers objet | non | Prévu pour J4 |
-| `campus/v1/devices/{device_id}/results` | objet vers backend | non | Prévu pour J4 |
+| `campus/v1/devices/{device_id}/commands` | backend vers objet | non | Publication d'une commande en QoS 1, jamais retained, sinon l'objet la recevrait à chaque reconnexion |
+| `campus/v1/devices/{device_id}/results` | objet vers backend | non | Résultat d'une commande, rattaché par son `command_id`. Il passe par la zone brute et le job, comme une mesure |
 
 Le backend s'abonne avec `+` pour couvrir tous les objets, en QoS 1 et avec une session
 persistante, pour que le broker garde les messages publiés pendant son absence. La portée
@@ -125,6 +125,7 @@ d'expliquer après coup ce qu'un capteur avait envoyé.
 | Objet autorisé | `device_id` présent dans le registre et autorisé | `jobs/consolidation.ts` |
 | Doublon | Unicité de `(device_id, message_id, recorded_at)` en base | `db/mesures.ts` |
 | Antériorité | L'état courant ne recule pas | `domain/fraicheur.ts` |
+| Résultat de commande | `command_id` connu, résultat envoyé par l'objet destinataire | `jobs/consolidation.ts` |
 
 Un message refusé garde son contenu d'origine et son motif dans la zone brute, et produit une
 trace portant `eventType`, `deviceId`, `eventId` et `reason`.
@@ -175,7 +176,11 @@ Une réponse gardée en cache fige le champ `is_stale`, donc passé 30 secondes 
 | Retour de l'application au premier plan | Nouvel appel |
 | Retour du réseau | Nouvel appel |
 | Pendant qu'un écran est ouvert | Rafraîchissement toutes les 15 secondes |
-| Après l'envoi d'une commande | Interrogation du suivi toutes les 2 secondes, jusqu'à un statut définitif ou 15 secondes |
+| Après l'envoi d'une commande | Interrogation du suivi toutes les 2 secondes, jusqu'à un statut définitif ou 30 secondes |
+| Après une commande exécutée | Nouvel appel à `GET /rooms`, pour lire le nouvel état de la ventilation |
+
+Le plafond du suivi est de 30 secondes et pas 15, parce que le backend tranche `unknown` au
+rythme de son job, donc jusqu'à 20 secondes après la demande.
 
 Le rafraîchissement périodique s'arrête en arrière-plan, donc un écran laissé derrière ne se
 met pas à jour tout seul.
@@ -190,7 +195,8 @@ Ces valeurs sont déclarées avant les tests de recette, comme le demande le suj
 | Bornes acceptées pour une mesure | -40 à 85 °C, 0 à 40000 ppm | Celles d'un capteur, pas celles du modèle du kit qui reste entre 420 et 2500 ppm. Refuser tout ce qui sort du modèle jetterait les valeurs anormales mais vraies, celles qu'une supervision doit signaler |
 | Seuil de fraîcheur d'une mesure | 30 secondes | Les capteurs publient toutes les 2 secondes : 30 secondes valent 15 mesures manquées, ce n'est plus un aléa réseau. Assez long pour absorber une reconnexion du broker, assez court pour le montrer en démonstration |
 | Expiration d'une commande | 10 secondes | C'est nous qui la choisissons : le contrat impose seulement une date future, et l'outil du kit utilise 15 secondes. Passé ce délai, l'objet refuse d'exécuter |
-| Attente maximale d'une commande | 15 secondes | Plus longue que l'expiration. Abandonner avant laisserait l'objet exécuter après notre abandon, et on afficherait un échec faux |
+| Attente maximale d'une commande | 15 secondes | Plus longue que l'expiration. Abandonner avant laisserait l'objet exécuter après notre abandon, et on afficherait un échec faux. Vérifiée par le job, donc tranchée entre 15 et 20 secondes |
+| Attente de l'accusé du broker avant de répondre au POST d'une commande | 2 secondes au plus | Le mobile reçoit `published_at` dans le cas normal, où l'accusé arrive en quelques millisecondes. Broker coupé, il n'attend pas plus : la réponse part sans `published_at` et l'attente maximale de la commande prend le relais |
 | Alerte CO2, déclenchement | 1000 ppm | Au-dessus de la valeur repère de 800 ppm du HCSP |
 | Alerte CO2, retour à la normale | 800 ppm | Retour à la valeur repère. L'écart de 200 ppm empêche l'alerte de clignoter autour d'une valeur unique |
 | Rétention de l'historique | 7 jours | Assez pour montrer une évolution sur plusieurs jours, assez court pour que la suppression automatique soit observable |
