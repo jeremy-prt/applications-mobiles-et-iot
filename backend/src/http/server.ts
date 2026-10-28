@@ -22,6 +22,45 @@ import {
   type Commande,
 } from '../db/commandes.ts'
 import { CommandId } from '../schemas/mqtt.ts'
+import { lireAlertes, type Alerte as LigneAlerte } from '../db/alertes.ts'
+import { consolidationEnRetard } from '../domain/surveillance.ts'
+import { dernierPassageReussi } from '../jobs/consolidation.ts'
+
+const Alerte = z.object({
+  id: z.number(),
+  device_id: z.string(),
+  room_id: z.string(),
+  kind: z.literal('co2_high'),
+  status: z.enum(['active', 'resolved']),
+  threshold_on: z.number(),
+  threshold_off: z.number(),
+  opened_at: z.string(),
+  opening_value: z.number(),
+  peak_value: z.number(),
+  last_value: z.number(),
+  last_measure_at: z.string(),
+  measures: z.number(),
+  closed_at: z.string().nullable(),
+  closing_value: z.number().nullable(),
+})
+
+function versAlerte(a: LigneAlerte): z.infer<typeof Alerte> {
+  return {
+    ...a,
+    opened_at: a.opened_at.toISOString(),
+    last_measure_at: a.last_measure_at.toISOString(),
+    closed_at: a.closed_at?.toISOString() ?? null,
+  }
+}
+
+/** Les alertes se lisent par page bornée, comme l'historique. */
+const ALERTES_MAX = 100
+
+const RequeteAlertes = z.object({
+  status: z.enum(['active', 'resolved', 'all']).default('all'),
+  device_id: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(ALERTES_MAX).default(20),
+})
 
 const Mesure = z.object({
   device_id: z.string(),
@@ -32,6 +71,7 @@ const Mesure = z.object({
   is_stale: z.boolean(),
   availability: z.string().nullable(),
   ventilation: z.boolean().nullable(),
+  alert: Alerte.nullable(),
 })
 type Mesure = z.infer<typeof Mesure>
 
@@ -176,6 +216,7 @@ export function creerServeur() {
     postgres: z.boolean(),
     mongo: z.boolean(),
     broker: z.boolean(),
+    consolidation: z.boolean(),
   })
   app.get(
     '/health',
@@ -198,11 +239,14 @@ export function creerServeur() {
         postgres,
         mongo: await mongoRepond(),
         broker: brokerConnecte(),
+        // Un job bloqué laisse l'API et le broker répondre pendant que plus
+        // aucune mesure n'atteint l'écran.
+        consolidation: !consolidationEnRetard(dernierPassageReussi(), new Date(), config.CONSOLIDATION_INTERVAL_MS),
       }
 
-      // L'ingestion a besoin des trois : le broker apporte les messages, Mongo
-      // les conserve, PostgreSQL reçoit le résultat consolidé.
-      const tout = composants.postgres && composants.mongo && composants.broker
+      // L'ingestion a besoin des quatre : le broker apporte les messages, Mongo
+      // les conserve, le job les valide, PostgreSQL reçoit le résultat.
+      const tout = composants.postgres && composants.mongo && composants.broker && composants.consolidation
       const status = !postgres ? 'down' : tout ? 'ok' : 'degraded'
 
       // `db` est conservé pour ne pas casser les appelants écrits en J1.
@@ -214,23 +258,28 @@ export function creerServeur() {
     '/rooms',
     { schema: { response: { 200: z.object({ rooms: z.array(Salle) }) } } },
     async () => {
-      const lignes = await db
-        .selectFrom('devices')
-        .innerJoin('rooms', 'rooms.id', 'devices.room_id')
-        .leftJoin('device_state', 'device_state.device_id', 'devices.id')
-        .select([
-          'devices.id as device_id',
-          'rooms.id as room_id',
-          'rooms.label as room_label',
-          'device_state.recorded_at',
-          'device_state.temperature_c',
-          'device_state.co2_ppm',
-          'device_state.availability',
-          'device_state.ventilation',
-        ])
-        .orderBy('rooms.id')
-        .orderBy('devices.id')
-        .execute()
+      const [lignes, actives] = await Promise.all([
+        db
+          .selectFrom('devices')
+          .innerJoin('rooms', 'rooms.id', 'devices.room_id')
+          .leftJoin('device_state', 'device_state.device_id', 'devices.id')
+          .select([
+            'devices.id as device_id',
+            'rooms.id as room_id',
+            'rooms.label as room_label',
+            'device_state.recorded_at',
+            'device_state.temperature_c',
+            'device_state.co2_ppm',
+            'device_state.availability',
+            'device_state.ventilation',
+          ])
+          .orderBy('rooms.id')
+          .orderBy('devices.id')
+          .execute(),
+        // Une alerte active au plus par objet, garanti par un index unique.
+        lireAlertes({ status: 'active', limit: ALERTES_MAX }),
+      ])
+      const alerteParObjet = new Map(actives.map((a) => [a.device_id, versAlerte(a)]))
 
       const maintenant = new Date()
       const parSalle = new Map<string, Salle>()
@@ -251,6 +300,7 @@ export function creerServeur() {
           is_stale: estAncienne(l.recorded_at, maintenant, config.STALE_AFTER_SECONDS),
           availability: l.availability,
           ventilation: l.ventilation,
+          alert: alerteParObjet.get(l.device_id) ?? null,
         })
         parSalle.set(l.room_id, salle)
       }
@@ -265,7 +315,7 @@ export function creerServeur() {
       schema: {
         params: z.object({ id: z.string().min(1) }),
         querystring: RequeteHistorique,
-        response: { 200: Historique, 404: Erreur },
+        response: { 200: Historique, 400: Erreur, 404: Erreur },
       },
     },
     async (requete, reponse) => {
@@ -281,6 +331,13 @@ export function creerServeur() {
       const fin = to === undefined ? new Date() : new Date(to)
       const debut =
         from === undefined ? new Date(fin.getTime() - FENETRE_PAR_DEFAUT_MS) : new Date(from)
+      // Une période vide ou à l'envers rendait une liste vide, qu'on prenait
+      // pour un capteur sans mesure.
+      if (debut.getTime() >= fin.getTime()) {
+        return reponse
+          .code(400)
+          .send({ error: { code: 'INVALID_REQUEST', message: 'from doit précéder to' } })
+      }
 
       const points = await lireHistorique(id, { from: debut, to: fin, limit, resolution })
 
@@ -418,6 +475,26 @@ export function creerServeur() {
           .send({ error: { code: 'COMMAND_NOT_FOUND', message: 'Commande inconnue' } })
       }
       return versReponse(commande)
+    },
+  )
+
+  app.get(
+    '/alerts',
+    {
+      schema: {
+        querystring: RequeteAlertes,
+        response: { 200: z.object({ alerts: z.array(Alerte) }), 404: Erreur },
+      },
+    },
+    async (requete, reponse) => {
+      const { status, device_id: deviceId, limit } = requete.query
+      if (deviceId !== undefined && !(await objetExiste(deviceId))) {
+        return reponse
+          .code(404)
+          .send({ error: { code: 'DEVICE_NOT_FOUND', message: 'Objet inconnu' } })
+      }
+      const alertes = await lireAlertes({ status, deviceId, limit })
+      return { alerts: alertes.map(versAlerte) }
     },
   )
 

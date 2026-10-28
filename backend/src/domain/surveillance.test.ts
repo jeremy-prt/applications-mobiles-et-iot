@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { detecterBascules, vientDeLaSessionAnnoncee } from './surveillance.ts'
+import { consolidationEnRetard, detecterBascules, vientDeLaSessionAnnoncee } from './surveillance.ts'
 
 // Le seuil déclaré dans docs/architecture.md, avant les tests de recette.
 const SEUIL = 30
@@ -91,4 +91,10 @@ test('un préfixe qui ressemble sans le tiret ne passe pas', () => {
 
 test('sans boot_id connu, on ne conclut pas', () => {
   assert.equal(vientDeLaSessionAnnoncee('abc123-42', null), null)
+})
+
+test('le job est à l heure tant qu un passage a réussi dans les trois dernières périodes', () => {
+  const dernier = T('2026-10-28T10:00:00Z')
+  assert.equal(consolidationEnRetard(dernier, T('2026-10-28T10:00:15Z'), 5000), false)
+  assert.equal(consolidationEnRetard(dernier, T('2026-10-28T10:00:16Z'), 5000), true)
 })
