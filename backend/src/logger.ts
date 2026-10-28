@@ -58,6 +58,9 @@ export type EventType =
   | 'commande_sans_reponse'
   | 'commande_doublon'
   | 'resultat_rejete'
+  | 'alerte_ouverte'
+  | 'alerte_prolongee'
+  | 'alerte_fermee'
 
 /** L'issue d'un traitement, quand elle a un sens pour l'événement. */
 export type Statut =
@@ -73,6 +76,8 @@ export type Statut =
   | 'executee'
   | 'refusee_par_l_objet'
   | 'sans_reponse'
+  | 'alerte_active'
+  | 'retour_a_la_normale'
 
 /** Les motifs de refus. Codes fixes, pour pouvoir compter par motif. */
 export type Motif =
@@ -110,6 +115,8 @@ export interface Evenement {
   topic?: string
   /** La commande concernée : une seule recherche sur lui donne tout son parcours. */
   commandId?: string | null
+  /** L'alerte concernée, de son ouverture à son retour à la normale. */
+  alertId?: number
   status?: Statut
   /**
    * Pourquoi le message a été refusé, sous forme de code stable et non de

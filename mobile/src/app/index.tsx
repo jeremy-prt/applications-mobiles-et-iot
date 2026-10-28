@@ -1,11 +1,12 @@
 import { router } from 'expo-router'
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
-import { useTheme } from 'react-native-paper'
+import { Text, useTheme } from 'react-native-paper'
 import { ErreurApi } from '@/api/client'
 import { useSalles } from '@/api/salles'
 import { BandeauDonnees } from '@/components/bandeau'
 import { CarteSalle } from '@/components/carte-salle'
 import { EtatChargement, EtatErreur, EtatHorsLigne, EtatVide } from '@/components/etats'
+import { resumeSallesEnAlerte, sallesEnAlerte } from '@/lib/alertes'
 import { useMaintenant } from '@/lib/horloge'
 import { useEnLigne } from '@/lib/reseau'
 
@@ -47,8 +48,21 @@ export default function EcranSalles() {
     )
   }
 
+  const resume = resumeSallesEnAlerte(sallesEnAlerte(data.rooms))
+
   return (
     <View style={[styles.ecran, { backgroundColor: theme.colors.background }]}>
+      {resume === null ? null : (
+        <View
+          style={[styles.resume, { backgroundColor: theme.colors.errorContainer }]}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          <Text variant="labelLarge" style={{ color: theme.colors.onErrorContainer }}>
+            {resume}
+          </Text>
+        </View>
+      )}
       <BandeauDonnees
         enLigne={enLigne}
         enPause={fetchStatus === 'paused'}
@@ -77,4 +91,5 @@ export default function EcranSalles() {
 const styles = StyleSheet.create({
   ecran: { flex: 1 },
   liste: { padding: 16 },
+  resume: { paddingHorizontal: 16, paddingVertical: 10 },
 })

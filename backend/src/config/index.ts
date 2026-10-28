@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { seuilsValides } from '../domain/alertes.ts'
 
 const Config = z.object({
   DATABASE_URL: z.string().min(1),
@@ -46,7 +47,10 @@ const Config = z.object({
   // Plus long que l'expiration : abandonner avant laisserait l'objet exécuter
   // après notre abandon, et on afficherait un échec faux.
   COMMAND_TIMEOUT_SECONDS: z.coerce.number().default(15),
-})
+}).refine(
+  (c) => seuilsValides({ declenchement: c.CO2_ALERT_ON_PPM, retour: c.CO2_ALERT_OFF_PPM }),
+  { message: 'CO2_ALERT_OFF_PPM doit être sous CO2_ALERT_ON_PPM', path: ['CO2_ALERT_OFF_PPM'] },
+)
 
 const parsed = Config.safeParse(process.env)
 

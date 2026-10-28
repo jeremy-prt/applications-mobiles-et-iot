@@ -90,3 +90,16 @@ export function vientDeLaSessionAnnoncee(
   if (bootIdConnu === null) return null
   return messageId.startsWith(`${bootIdConnu}-`)
 }
+
+/**
+ * Le job de consolidation est-il arrêté ou bloqué ? Sans lui, l'API répond et
+ * le broker livre, mais plus aucune mesure n'atteint l'écran. Trois périodes
+ * sans passage réussi laissent passer un passage lent sous charge.
+ */
+export function consolidationEnRetard(
+  dernierPassage: Date,
+  maintenant: Date,
+  periodeMs: number,
+): boolean {
+  return maintenant.getTime() - dernierPassage.getTime() > 3 * periodeMs
+}

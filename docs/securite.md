@@ -1,7 +1,7 @@
 # Sécurité
 
-Ce document décrit la cible. Au 16 septembre 2026, l'authentification et les droits ne sont pas
-implémentés, l'API est ouverte.
+Ce document décrit la cible. À la fin de J5, le 28 octobre 2026, l'authentification et les
+droits ne sont pas implémentés et l'API est ouverte. C'est un écart au périmètre, gelé après J5.
 
 ## Identités
 
@@ -43,6 +43,7 @@ les droits par topic. Notre backend ne peut pas publier de fausses mesures ni d�
 | Mesures | Température, CO2, les deux dates, l'identifiant du message | 7 jours, supprimées automatiquement par TimescaleDB |
 | Dernier état | Une ligne par objet, écrasée | Tant que l'objet existe |
 | Commandes | Qui a demandé quoi, quand, et le résultat | Conservées, elles servent de trace |
+| Alertes | L'objet, la salle, les dates et valeurs de début, de pic et de fin | Conservées, quelques lignes par jour et par salle |
 | Utilisateurs | Identifiant de connexion et mot de passe haché | Tant que le compte existe |
 | Messages bruts | Le message MQTT tel qu'il est arrivé, dans MongoDB | 7 jours, supprimés par un index TTL |
 | Cache du téléphone | La dernière réponse de l'API, sur le disque de l'appareil | 24 heures |

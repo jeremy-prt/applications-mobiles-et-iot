@@ -91,6 +91,18 @@ docker compose start mosquitto
 Les messages `broker injoignable` puis `reconnexion au broker` permettent de
 prouver la détection et la reprise.
 
+Pour une alerte CO2, voir R12 dans `docs/recette.md` :
+
+```sh
+./docs/preuves/outils/alerte.sh sensor-001
+```
+
+Une alerte produit deux lignes, `alerte_ouverte` en warn et `alerte_fermee` en info, avec
+`alertId`, le `co2` et l'`eventId` de la mesure qui l'a provoquée. Chercher cet `eventId`
+dans **Identifiant de mesure** donne le parcours de cette mesure jusqu'à l'alerte. Les mises
+à jour d'une alerte active, une par mesure, ne sortent qu'en `LOG_LEVEL=debug`, sous
+`alerte_prolongee`.
+
 ## Persistance et remise à zéro
 
 Les volumes `loki-data`, `alloy-data` et `grafana-data` conservent respectivement

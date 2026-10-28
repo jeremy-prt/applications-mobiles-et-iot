@@ -12,11 +12,12 @@ PostgreSQL 18 avec l'extension TimescaleDB, une seule base. Toutes les dates son
 | `telemetry` | Toutes les mesures reçues. C'est l'hypertable TimescaleDB |
 | `telemetry_bucket` | Les tranches de 5 minutes calculées par le job : moyenne, minimum, maximum |
 | `device_state` | Le dernier état connu de chaque objet, une ligne par objet |
-| `users` | Les comptes |
-| `roles` et `user_roles` | Qui a le droit de consulter, qui a le droit de commander |
 | `commands` | Les commandes envoyées et leur suivi |
-| `alert_rules` | Les seuils qui déclenchent une alerte |
-| `alerts` | Les alertes ouvertes et fermées |
+| `alerts` | Les alertes CO2, une ligne par épisode, de l'activation au retour à la normale |
+
+Prévues en J1 et non créées : `users`, `roles` et `user_roles`, car l'authentification n'est
+pas livrée, et `alert_rules`, car une seule règle existe. Ses seuils sont dans la
+configuration du backend et recopiés dans chaque alerte.
 
 ## Les règles garanties par la base
 
@@ -84,6 +85,25 @@ vérifie le scénario R10.
 | `expires_at` | 10 secondes après la demande | Envoyée à l'objet, qui refuse d'exécuter après |
 | `result_at` | L'heure de réception du résultat | Dater la confirmation |
 | `late` | Vrai si le résultat est arrivé après l'attente maximale | Signaler une confirmation tardive |
+
+## Les alertes
+
+| Colonne | Ce que c'est | À quoi elle sert |
+|---|---|---|
+| `id` | Numéro attribué par la base | Suivre l'alerte dans les traces, champ `alertId` |
+| `device_id`, `room_id` | L'objet, et sa salle dans le registre à l'ouverture | Afficher l'alerte au bon endroit |
+| `kind` | Toujours `co2_high` | Le seul type d'alerte |
+| `status` | `active` ou `resolved` | Savoir si l'épisode est terminé |
+| `threshold_on`, `threshold_off` | Les seuils en vigueur à l'ouverture | Relire une alerte même si on change les seuils |
+| `opened_at`, `opening_value` | La date du capteur et la valeur de la première mesure au seuil | Dater le début |
+| `peak_value`, `last_value`, `last_measure_at`, `measures` | Le pic, la dernière valeur, sa date, le nombre de mesures de l'épisode | Montrer qu'une seule ligne suit tout l'épisode |
+| `closed_at`, `closing_value` | La première mesure sous le seuil de retour | Dater le retour à la normale |
+
+L'index unique partiel `alerts_une_active`, sur `(device_id, kind)` et limité aux alertes
+`active`, interdit une seconde alerte active. L'ouverture s'écrit `ON CONFLICT DO NOTHING`, la
+fermeture est une mise à jour conditionnée à `status = 'active'`. L'index `alerts_recentes`
+sur `opened_at` sert la lecture bornée de `GET /alerts`. Les alertes sont gardées sans limite
+de durée, comme les commandes : quelques lignes par jour et par salle.
 
 ## La zone brute, dans MongoDB
 

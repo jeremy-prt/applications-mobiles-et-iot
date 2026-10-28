@@ -17,6 +17,8 @@ import { detecterBascules, vientDeLaSessionAnnoncee } from '../domain/surveillan
 import { estDansLAvenir } from '../domain/fraicheur.ts'
 import { deciderResultat, limiteSansReponse } from '../domain/commandes.ts'
 import { lireCommande, appliquerResultat, abandonnerSansReponse } from '../db/commandes.ts'
+import { deciderAlerte } from '../domain/alertes.ts'
+import { alerteActive, ouvrirAlerte, prolongerAlerte, fermerAlerte } from '../db/alertes.ts'
 
 /**
  * Le job de consolidation. Il relit la zone brute dans l'ordre d'arrivée,
@@ -241,9 +243,64 @@ async function traiterTelemetrie(
     'mesure enregistrée',
   )
   compteurs.traites += 1
+  // Une mesure en retard ne décrit plus la salle : elle n'ouvre ni ne ferme
+  // d'alerte. Une mesure invalide ou en doublon n'arrive pas jusqu'ici.
+  if (res.etatCourantMisAJour) await evaluerAlerte(parsed.data, doc.event_id)
   const dates = tranchesParObjet.get(parsed.data.device_id) ?? []
   dates.push(new Date(parsed.data.observed_at))
   tranchesParObjet.set(parsed.data.device_id, dates)
+}
+
+/**
+ * Applique la règle d'alerte CO2 à la mesure qui vient de prendre l'état
+ * courant. L'`eventId` de cette mesure est tracé avec l'alerte, pour remonter
+ * de l'alerte au message qui l'a provoquée.
+ */
+async function evaluerAlerte(mesure: Telemetrie, eventId: string): Promise<void> {
+  const co2 = mesure.co2.value
+  const mesureeA = new Date(mesure.observed_at)
+  const active = await alerteActive(mesure.device_id)
+  const decision = deciderAlerte(active !== undefined, co2, {
+    declenchement: config.CO2_ALERT_ON_PPM,
+    retour: config.CO2_ALERT_OFF_PPM,
+  })
+  const base = { deviceId: mesure.device_id, eventId, co2 }
+
+  if (decision === 'ouvrir') {
+    const ouverte = await ouvrirAlerte({
+      device_id: mesure.device_id,
+      threshold_on: config.CO2_ALERT_ON_PPM,
+      threshold_off: config.CO2_ALERT_OFF_PPM,
+      valeur: co2,
+      mesureeA,
+    })
+    if (ouverte !== undefined) {
+      alerter(
+        { ...base, eventType: 'alerte_ouverte', alertId: ouverte.id, status: 'alerte_active', seuil: config.CO2_ALERT_ON_PPM },
+        'alerte CO2 ouverte',
+      )
+    }
+  } else if (decision === 'prolonger' && active !== undefined) {
+    await prolongerAlerte(active.id, co2, mesureeA)
+    // En debug seulement : une ligne par mesure noierait l'ouverture et le retour.
+    logger.debug({ ...base, eventType: 'alerte_prolongee', alertId: active.id, status: 'alerte_active' }, 'alerte CO2 prolongée')
+  } else if (decision === 'fermer' && active !== undefined) {
+    if (await fermerAlerte(active.id, co2, mesureeA)) {
+      tracer(
+        {
+          ...base,
+          eventType: 'alerte_fermee',
+          alertId: active.id,
+          status: 'retour_a_la_normale',
+          seuil: config.CO2_ALERT_OFF_PPM,
+          pic: Math.max(active.peak_value, co2),
+          mesures: active.measures,
+          dureeSecondes: Math.round((mesureeA.getTime() - active.opened_at.getTime()) / 1000),
+        },
+        'alerte CO2 revenue à la normale',
+      )
+    }
+  }
 }
 
 async function traiterEtat(
@@ -591,6 +648,16 @@ async function surveillerFraicheur(): Promise<void> {
   }
 }
 
+/**
+ * L'heure du dernier passage complet, lue par `/health`. Part de l'heure de
+ * démarrage, pour ne pas annoncer un job en retard avant son premier passage.
+ */
+let dernierPassage = new Date()
+
+export function dernierPassageReussi(): Date {
+  return dernierPassage
+}
+
 export function demarrerConsolidation(): () => void {
   let arrete = false
   let minuteur: NodeJS.Timeout | null = null
@@ -607,6 +674,7 @@ export function demarrerConsolidation(): () => void {
       await abandonnerCommandes()
       await surveillerFraicheur()
       await purgerTranchesAnciennes()
+      dernierPassage = new Date()
     } catch (err) {
       // Une erreur ne doit pas arrêter la boucle : les messages restent en
       // attente dans la zone brute et repassent au tour suivant.

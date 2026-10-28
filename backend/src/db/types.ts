@@ -66,6 +66,24 @@ export interface CommandsTable {
   late: ColumnType<boolean, boolean | undefined, boolean>
 }
 
+export interface AlertsTable {
+  id: Generated<number>
+  device_id: string
+  room_id: string
+  kind: 'co2_high'
+  status: ColumnType<'active' | 'resolved', 'active' | undefined, 'resolved'>
+  threshold_on: number
+  threshold_off: number
+  opened_at: ColumnType<Date, Date, never>
+  opening_value: number
+  peak_value: number
+  last_value: number
+  last_measure_at: Date
+  measures: ColumnType<number, number | undefined, number>
+  closed_at: DateNullable
+  closing_value: ColumnType<number | null, number | null | undefined, number | null>
+}
+
 export interface Database {
   rooms: RoomsTable
   devices: DevicesTable
@@ -73,4 +91,5 @@ export interface Database {
   telemetry_bucket: TelemetryBucketTable
   device_state: DeviceStateTable
   commands: CommandsTable
+  alerts: AlertsTable
 }

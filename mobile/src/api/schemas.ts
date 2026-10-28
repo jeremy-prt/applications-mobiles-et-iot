@@ -11,6 +11,30 @@ const Valeur = z.object({
   unit: z.string(),
 })
 
+/** Une alerte CO2, ouverte et fermée par le backend selon ses deux seuils. */
+export const Alerte = z.object({
+  id: z.number(),
+  device_id: z.string(),
+  room_id: z.string(),
+  kind: z.string(),
+  status: z.enum(['active', 'resolved']),
+  threshold_on: z.number(),
+  threshold_off: z.number(),
+  opened_at: z.string(),
+  opening_value: z.number(),
+  peak_value: z.number(),
+  last_value: z.number(),
+  last_measure_at: z.string(),
+  measures: z.number(),
+  closed_at: z.string().nullable(),
+  closing_value: z.number().nullable(),
+})
+export type Alerte = z.infer<typeof Alerte>
+
+export const ReponseAlertes = z.object({
+  alerts: z.array(Alerte),
+})
+
 export const Objet = z.object({
   device_id: z.string(),
   room_id: z.string(),
@@ -21,6 +45,8 @@ export const Objet = z.object({
   availability: z.string().nullable(),
   // Absent, il vaut inconnu plutôt que de rendre toute la réponse invalide.
   ventilation: z.boolean().nullable().default(null),
+  // L'alerte active de l'objet. Absente d'un backend antérieur à J5 : aucune.
+  alert: Alerte.nullable().default(null),
 })
 export type Objet = z.infer<typeof Objet>
 
