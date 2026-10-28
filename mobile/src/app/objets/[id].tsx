@@ -2,9 +2,11 @@ import { Stack, useLocalSearchParams } from 'expo-router'
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { Button, Text, useTheme } from 'react-native-paper'
 import { ErreurApi } from '@/api/client'
+import { useAlertesObjet } from '@/api/alertes'
 import { useCommandeVentilation } from '@/api/commandes'
 import { useObjet } from '@/api/salles'
 import { useHistorique } from '@/api/telemetrie'
+import { BlocAlerte, HistoriqueAlertes } from '@/components/alerte'
 import { BandeauDonnees } from '@/components/bandeau'
 import { Courbe } from '@/components/courbe'
 import { EtatChargement, EtatErreur, EtatHorsLigne, EtatVide } from '@/components/etats'
@@ -61,6 +63,7 @@ export default function EcranObjet() {
   const { data, isPending, isError, error, refetch, isRefetching, dataUpdatedAt, fetchStatus, failureCount } = useObjet(id)
   const historique = useHistorique(id)
   const commande = useCommandeVentilation(id)
+  const alertes = useAlertesObjet(id)
 
   if (isPending && fetchStatus === 'paused') {
     return <EtatHorsLigne onReessayer={() => void refetch()} />
@@ -134,6 +137,7 @@ export default function EcranObjet() {
               onRefresh={() => {
                 void refetch()
                 void historique.refetch()
+                void alertes.refetch()
               }}
             />
           }
@@ -153,6 +157,10 @@ export default function EcranObjet() {
             />
           </View>
 
+          {objet.alert?.status === 'active' ? (
+            <BlocAlerte alerte={objet.alert} maintenant={maintenant} />
+          ) : null}
+
           <View>
             <Ligne libelle="Salle" valeur={salle.label} />
             <Ligne libelle="Dernière mesure" valeur={depuis(objet.recorded_at, maintenant)} />
@@ -167,6 +175,13 @@ export default function EcranObjet() {
             bloque={!enLigne || statut?.ton === 'attente'}
             statut={statut}
             onCommander={commande.envoyer}
+          />
+
+          <HistoriqueAlertes
+            alertes={alertes.data?.alerts ?? []}
+            chargement={alertes.isPending}
+            echec={alertes.isError || alertes.failureCount > 0}
+            onReessayer={() => void alertes.refetch()}
           />
 
           <View style={styles.historique}>

@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native'
-import { Card, Chip, Text } from 'react-native-paper'
+import { Card, Chip, Text, useTheme } from 'react-native-paper'
 import type { Objet } from '@/api/schemas'
 import { depuis } from '@/lib/dates'
 import { fraicheurAffichee, libelleFraicheur } from '@/lib/fraicheur'
@@ -23,7 +23,9 @@ export function CarteObjet({
   maintenant: number
   onPress?: () => void
 }) {
+  const theme = useTheme()
   const fraicheur = fraicheurAffichee(objet.is_stale, ageReponseMs)
+  const enAlerte = objet.alert?.status === 'active'
 
   return (
     <Card style={styles.carte} mode="outlined" onPress={onPress}>
@@ -57,6 +59,16 @@ export function CarteObjet({
 
             <View style={styles.pastilles}>
               <Text variant="bodySmall">Mesure {depuis(objet.recorded_at, maintenant)}</Text>
+              {enAlerte ? (
+                <Chip
+                  compact
+                  icon="alert"
+                  style={[styles.pastille, { backgroundColor: theme.colors.errorContainer }]}
+                  textStyle={{ color: theme.colors.onErrorContainer }}
+                >
+                  Alerte CO2
+                </Chip>
+              ) : null}
               {/* L'ancienneté est décidée par le backend, dont l'horloge sert de
                   référence. Mais une réponse gardée en cache fige ce verdict :
                   au-delà du seuil, on ne prétend plus que la mesure est fraîche. */}
