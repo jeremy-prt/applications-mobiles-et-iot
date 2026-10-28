@@ -6,7 +6,7 @@ flowchart LR
     M -->|MQTT| B["Backend (nous)"]
     B -->|message brut, sans validation| R[("MongoDB, zone brute (nous)")]
     R --> J["Job de consolidation, toutes les 5 s (nous)"]
-    J -->|mesures validées et agrégats| D[("PostgreSQL + TimescaleDB (nous)")]
+    J -->|mesures validées, agrégats, alertes| D[("PostgreSQL + TimescaleDB (nous)")]
     D -->|HTTP| A["Application mobile (nous)"]
     B -->|MQTT commandes| M
 ```
@@ -29,7 +29,6 @@ Le consommateur MQTT n'écrit pas dans PostgreSQL. Le pourquoi et ce que ça co�
 | Accès aux données | pg et Kysely | 8.23.0 et 0.29.5 |
 | Migrations | node-pg-migrate | 9.0.0 |
 | Validation | Zod | 4.6.5 |
-| Authentification | @fastify/jwt et argon2 | 10.2.2 et 0.45.1 |
 | Traces | Pino | 10.3.1 |
 | Mobile | Expo SDK 57 (React Native 0.86) | expo 57.0.22 |
 | Navigation mobile | Expo Router | 57.0.21 |
@@ -37,9 +36,11 @@ Le consommateur MQTT n'écrit pas dans PostgreSQL. Le pourquoi et ce que ça co�
 | Persistance du cache mobile | react-query-persist-client, query-async-storage-persister | 5.103.0 |
 | Détection du réseau | NetInfo | 12.0.1 |
 | Stockage local | AsyncStorage | 2.2.0 |
-| Jeton sur le téléphone | expo-secure-store | 57.0.4 |
 | Interface | React Native Paper | 5.15.3 |
-| Scan de QR | expo-camera | 57.0.5 |
+
+Prévues et non livrées : `@fastify/jwt` et `argon2` sont installées dans le backend mais
+aucun code ne les appelle, `expo-secure-store` et `expo-camera` ne sont pas installées.
+L'authentification et le scan de QR sont hors du livrable, voir `docs/J5.md`.
 
 Aucune bibliothèque d'état global. TanStack Query gère les données du serveur, le jeton tient
 dans un contexte React. Le choix de chaque brique et ce qu'elle coûte sont dans
@@ -50,7 +51,7 @@ dans un contexte React. Le choix de chaque brique et ce qu'elle coûte sont dans
 ```
 backend/src/
   schemas/    schémas Zod : le format des messages et des requêtes
-  domain/     les règles : doublon, ordre des mesures, fraîcheur, tranches d'agrégat, commandes
+  domain/     les règles : doublon, ordre des mesures, fraîcheur, tranches d'agrégat, commandes, alertes
   db/         requêtes SQL, accès à la zone brute, migrations
   mqtt/       connexion au broker, abonnements, écriture du brut
   jobs/       le job de consolidation, et le script de rejeu
@@ -126,6 +127,7 @@ d'expliquer après coup ce qu'un capteur avait envoyé.
 | Doublon | Unicité de `(device_id, message_id, recorded_at)` en base | `db/mesures.ts` |
 | Antériorité | L'état courant ne recule pas | `domain/fraicheur.ts` |
 | Résultat de commande | `command_id` connu, résultat envoyé par l'objet destinataire | `jobs/consolidation.ts` |
+| Alerte CO2 | Évaluée sur la mesure qui prend l'état courant, jamais sur une mesure en retard ou rejetée | `domain/alertes.ts` |
 
 Un message refusé garde son contenu d'origine et son motif dans la zone brute, et produit une
 trace portant `eventType`, `deviceId`, `eventId` et `reason`.
@@ -147,13 +149,16 @@ connecté au broker, donc `availability` reste `online` pendant que `is_stale` p
 
 ## État de santé du service
 
-`GET /health` dit ce que la chaîne fait vraiment, et pas seulement si la base répond. Trois
-composants sont interrogés, parce que l'ingestion a besoin des trois : le broker apporte les
-messages, MongoDB les conserve, PostgreSQL reçoit le résultat consolidé.
+`GET /health` dit ce que la chaîne fait vraiment, et pas seulement si la base répond. Quatre
+composants sont interrogés, parce que l'ingestion a besoin des quatre : le broker apporte les
+messages, MongoDB les conserve, le job de consolidation les valide, PostgreSQL reçoit le
+résultat. Le job est en cause quand son dernier passage réussi date de plus de trois
+périodes, soit 15 secondes. Ajouté en J5 : avant, un job bloqué laissait `/health` à `ok`
+pendant que plus aucune mesure n'atteignait l'écran.
 
 | État | Ce qu'il veut dire | Code HTTP |
 |---|---|---|
-| `ok` | Les trois répondent | 200 |
+| `ok` | Les quatre répondent | 200 |
 | `degraded` | L'API sert encore ce qu'elle a en base, mais l'ingestion est cassée | 200 |
 | `down` | PostgreSQL ne répond pas, il n'y a plus rien à servir | 503 |
 
@@ -178,6 +183,7 @@ Une réponse gardée en cache fige le champ `is_stale`, donc passé 30 secondes 
 | Pendant qu'un écran est ouvert | Rafraîchissement toutes les 15 secondes |
 | Après l'envoi d'une commande | Interrogation du suivi toutes les 2 secondes, jusqu'à un statut définitif ou 30 secondes |
 | Après une commande exécutée | Nouvel appel à `GET /rooms`, pour lire le nouvel état de la ventilation |
+| Détail d'un capteur ouvert | `GET /alerts` de ce capteur toutes les 15 secondes, pour l'historique des alertes |
 
 Le plafond du suivi est de 30 secondes et pas 15, parce que le backend tranche `unknown` au
 rythme de son job, donc jusqu'à 20 secondes après la demande.
@@ -201,15 +207,18 @@ Ces valeurs sont déclarées avant les tests de recette, comme le demande le suj
 | Alerte CO2, retour à la normale | 800 ppm | Retour à la valeur repère. L'écart de 200 ppm empêche l'alerte de clignoter autour d'une valeur unique |
 | Rétention de l'historique | 7 jours | Assez pour montrer une évolution sur plusieurs jours, assez court pour que la suppression automatique soit observable |
 | Taille maximale d'une page d'historique | 500 points | Borne les lectures, pour qu'une requête ne bloque pas l'ingestion |
+| Taille maximale d'une page d'alertes | 100 alertes | Même raison. Le mobile en lit 5 par capteur |
+| Retard toléré du job avant de le dire en cause | 3 périodes, 15 secondes | Un passage lent sous charge ne doit pas faire passer `/health` en `degraded` |
 | Rafraîchissement du mobile | 15 secondes | Sous le seuil de fraîcheur, donc l'affichage ne passe jamais en ancien à cause de notre propre rythme. Rafraîchir toutes les 2 secondes afficherait des variations d'un point de CO2 et viderait la batterie |
 | Période du job de consolidation | 5 secondes | Une mesure attend au pire un passage avant d'être visible. 5 secondes valent un sixième du seuil de fraîcheur, et un tiers du rythme du mobile |
 | Largeur d'une tranche d'agrégat | 5 minutes | 72 tranches couvrent six heures, sous la limite de 500 points. À la mesure brute, six heures feraient 10 000 points |
 | Rétention de la zone brute | 7 jours | La même que l'historique consolidé : le brut sert à recalculer la période qu'on affiche, pas au-delà |
 | Durée du cache sur le téléphone | 24 heures | Au-delà, des mesures de salle ne décrivent plus rien, même datées |
 
-Une seule alerte ouverte par salle. Tant qu'elle est ouverte, les mesures au-dessus de
-1000 ppm la mettent à jour au lieu d'en créer une nouvelle, et une mesure invalide ne doit ni
-ouvrir ni fermer une alerte. L'écart de 200 ppm vaut environ 17 mesures de montée sans
+Une seule alerte active par capteur, donc par salle ici, garantie par un index unique. Tant
+qu'elle est active, les mesures la mettent à jour au lieu d'en créer une nouvelle, et une
+mesure invalide ou en retard ne l'ouvre ni ne la ferme. Voir
+`docs/decisions/J5/17-regle-d-alerte-co2.md`. L'écart de 200 ppm vaut environ 17 mesures de montée sans
 ventilation et 5 mesures de descente avec, donc une valeur qui oscille ne les traverse pas.
 
 Le HCSP retient 800 ppm comme valeur repère d'un renouvellement d'air satisfaisant et

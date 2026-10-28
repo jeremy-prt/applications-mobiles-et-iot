@@ -18,7 +18,7 @@ Une requête mal formée, sur n'importe quelle route, reçoit un 400 avec le cod
 
 | Méthode | Chemin | Rôle | Droit requis |
 |---|---|---|---|
-| GET | `/health` | État du service, de la base, de la zone brute et du lien au broker | aucun |
+| GET | `/health` | État du service, de la base, de la zone brute, du lien au broker et du job | aucun |
 | POST | `/auth/login` | Obtenir un jeton | aucun |
 | GET | `/rooms` | Les salles avec la dernière mesure de chacune | consultation |
 | GET | `/rooms/:id` | Une salle et ses objets | consultation |
@@ -27,7 +27,7 @@ Une requête mal formée, sur n'importe quelle route, reçoit un 400 avec le cod
 | POST | `/devices/:id/commands` | Demander l'activation ou l'arrêt de la ventilation | commande |
 | GET | `/commands/:id` | Le suivi d'une commande | consultation |
 | POST | `/associations` | Associer un objet scanné à une salle | commande |
-| GET | `/alerts` | Les alertes en cours et récentes | consultation |
+| GET | `/alerts` | Les alertes en cours et récentes, 100 au maximum par appel | consultation |
 
 ## La forme d'une mesure
 
@@ -40,7 +40,8 @@ Une requête mal formée, sur n'importe quelle route, reçoit un 400 avec le cod
   "recorded_at": "2026-09-15T08:01:11.190Z",
   "is_stale": false,
   "availability": "online",
-  "ventilation": false
+  "ventilation": false,
+  "alert": null
 }
 ```
 
@@ -49,7 +50,8 @@ backend à partir du seuil de `docs/architecture.md`, pour que le mobile n'ait p
 avec une horloge qui peut différer. `availability` vient du broker et dit si l'objet est
 joignable, ce qui n'est pas la fraîcheur. `ventilation` est l'état annoncé par l'objet sur son
 topic `state`, et `null` tant qu'il n'a rien annoncé. C'est le seul état réel de la
-ventilation, une commande ne le modifie pas.
+ventilation, une commande ne le modifie pas. `alert` est l'alerte active de l'objet, dans la
+forme de `GET /alerts`, ou `null`.
 
 ## L'envoi d'une commande
 
@@ -168,9 +170,55 @@ En `raw`, `samples` et les bornes valent `null`, car une mesure reçue n'a rien 
 limite au-delà de 500 est refusée avec un 400 et `INVALID_REQUEST`, un objet inconnu avec un 404
 et `DEVICE_NOT_FOUND`.
 
-## État au 7 octobre 2026
+`from` doit précéder `to`, sinon c'est un 400 `INVALID_REQUEST`. Avant J5, une période à
+l'envers rendait une liste vide, qu'on prenait pour un capteur sans mesure.
 
-Sont implémentées : `/health`, `/rooms`, `/devices/:id/telemetry`, `POST /devices/:id/commands`
-et `GET /commands/:id`, toutes sans authentification. Restent à écrire : `/auth/login`,
-`/rooms/:id`, `/devices/:id`, les associations, les alertes, et le contrôle des droits sur
-l'ensemble.
+## Les alertes
+
+`GET /alerts`
+
+| Paramètre | Valeurs | Défaut |
+|---|---|---|
+| `status` | `active`, `resolved` ou `all` | `all` |
+| `device_id` | un objet connu, sinon 404 `DEVICE_NOT_FOUND` | tous |
+| `limit` | 1 à 100 | 20 |
+
+```json
+{
+  "alerts": [
+    {
+      "id": 4,
+      "device_id": "sensor-001",
+      "room_id": "salle-203",
+      "kind": "co2_high",
+      "status": "resolved",
+      "threshold_on": 1000,
+      "threshold_off": 800,
+      "opened_at": "2026-10-28T08:29:58.736Z",
+      "opening_value": 1813,
+      "peak_value": 2056,
+      "last_value": 610,
+      "last_measure_at": "2026-10-28T08:30:42.964Z",
+      "measures": 22,
+      "closed_at": "2026-10-28T08:30:42.964Z",
+      "closing_value": 610
+    }
+  ]
+}
+```
+
+Les alertes vont de la plus récente à la plus ancienne. Une alerte est un épisode, pas une
+mesure : elle s'ouvre à la première mesure à 1000 ppm ou plus, chaque mesure suivante met à
+jour `peak_value`, `last_value` et `measures`, et elle passe en `resolved` à la première
+mesure sous 800 ppm. Les dates sont celles du capteur. Les seuils sont recopiés dans l'alerte.
+Règle détaillée dans `docs/decisions/J5/17-regle-d-alerte-co2.md`.
+
+`/rooms` porte déjà l'alerte active de chaque objet, donc le mobile n'appelle `/alerts` que
+pour l'historique d'un capteur.
+
+## État au 28 octobre 2026
+
+Sont implémentées : `/health`, `/rooms`, `/devices/:id/telemetry`, `POST /devices/:id/commands`,
+`GET /commands/:id` et `GET /alerts`, toutes sans authentification. Ne sont pas écrites :
+`/auth/login`, `/rooms/:id`, `/devices/:id`, les associations et le contrôle des droits. Le
+périmètre est gelé après J5, elles restent hors du livrable.

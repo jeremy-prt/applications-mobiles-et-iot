@@ -16,12 +16,12 @@ Les seuils et délais utilisés sont déclarés avant les tests, dans docs/archi
 | R05 | Téléphone hors ligne | partiel | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée. Le blocage d'une commande hors ligne est codé en J4, pas encore exercé sur l'iPhone | `docs/preuves/J2-hors-ligne.png` |
 | R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini. L'arrière-plan et les abonnements dupliqués restent à exercer sur l'appareil | Fiche R06 |
 | R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07, et `docs/J3.md` scénario 7 |
-| R08 | Commande exécutée | partiel | Par l'API : `pending`, puis `executed` avec le `command_id`, et le CO2 baisse. Le parcours depuis l'iPhone reste à faire | Fiche R08 |
+| R08 | Commande exécutée | partiel | Par l'API : `pending`, puis `executed` avec le `command_id`, et le CO2 baisse. En J5, depuis l'application servie dans un navigateur : « Commande confirmée », puis l'alerte CO2 se ferme. Le parcours depuis l'iPhone reste à faire | Fiche R08, et fiche R12 |
 | R09 | Commande sans réponse | partiel | Par l'API : `pending` jusqu'à 15 s, `unknown` à 20 s, jamais `failed`. Une réponse tardive est appliquée avec `late` à vrai. L'affichage sur l'iPhone reste à voir | Fiche R09 |
 | R10 | Association et permission caméra | à faire | Le scan de QR n'est plus planifié par aucune journée depuis la réécriture du sujet, mais reste dans le périmètre | |
 | R11 | Autorisation | à faire | Décalé : les droits ne sont plus au programme de J3 depuis la réécriture du sujet | |
-| R12 | Alerte et retour à la normale | à faire | | |
-| R13 | Reproductibilité et terminal | à faire | | |
+| R12 | Alerte et retour à la normale | réussi | Une seule alerte pour 22 mesures au-dessus du seuil, revenue à la normale à 610 ppm. Le même épisode fermé par la ventilation commandée depuis l'application : 308 mesures, une ligne | Fiche R12 |
+| R13 | Reproductibilité et terminal | partiel | Copie propre du dépôt, base vide, commandes du README seules : chaîne `ok` en 14 s, 63 et 54 tests, alertes ouvertes d'elles-mêmes en une minute, données gardées après arrêt. Le lancement du mobile sur l'iPhone n'a pas été rejoué | Fiche R13 |
 
 ## Détail des scénarios
 
@@ -231,6 +231,58 @@ docker compose --profile tools run --rm tools incident sensor-001 respond
 - Résultat observé et preuve : `pending` à 5, 10 et 15 secondes, `unknown` à 20 secondes. Traces : `commande_acceptee` 12:06:04.775, `commande_publiee` .777, `commande_sans_reponse` avec `reason` `delai_depasse` à 12:06:24.701. Un résultat publié ensuite à la main sur le topic `results` passe la commande en `executed` avec `late` à vrai. Le même résultat rejoué donne `commande_doublon` et ne change rien. Un `command_id` inconnu donne `resultat_rejete` avec `reason` `commande_inconnue`
 - Conclusion : partiel. Le comportement du backend est prouvé. Côté mobile, le libellé « Sans réponse, résultat inconnu » est testé en unitaire, pas encore vu sur l'iPhone. L'écran n'affiche que l'état réel lu dans `GET /rooms`, jamais l'intention
 - Correction ou limite identifiée : on choisit `unknown` et pas `failed`, car sans réponse on ne sait pas si l'objet a agi. La bascule a lieu entre 15 et 20 secondes, au rythme du job. Détail dans `docs/decisions/J4/16-commande-sans-reponse-et-delai.md`
+
+## R12, alerte et retour à la normale
+
+- Scénario et responsable : R12, Jérémy Perret
+- Version du projet et environnement : J5, Windows 11 avec Docker Desktop, Docker Compose du dépôt, kit non modifié
+- Conditions initiales et paramètres : trois capteurs en ligne, publication toutes les 2 secondes, seuils de 1000 ppm pour l'activation et 800 ppm pour le retour, `sensor-001` ramené sous 800 ppm avant de commencer
+- Action effectuée :
+
+```sh
+./docs/preuves/outils/alerte.sh sensor-001
+```
+
+Le script joue `incident sensor-001 high-co2`, attend 42 secondes, puis joue
+`incident sensor-001 normal-co2`.
+
+- Résultat attendu : alerte identifiable, pas de création répétée à chaque mesure, retour à la normale selon la règle documentée
+- Résultat observé et preuve : l'alerte 4 s'ouvre sur la première mesure après l'incident, 1813 ppm à 08:29:58. 12 secondes plus tard elle compte 5 mesures, 30 secondes après 20, toujours la même ligne. Après `normal-co2`, elle passe en `resolved` sur la mesure à 610 ppm, à 08:30:42. Une seule alerte créée pendant le scénario. Les traces relient l'alerte à la mesure qui l'a ouverte
+
+```
+08:30:01.767  alerte_ouverte  alerte 4  1813 ppm  mesure 56f734cf-b8ed-43aa-b343-a75eccbbe5f4
+08:30:47.538  alerte_fermee   alerte 4   610 ppm  mesure 7bb1b143-2188-4e31-a3c0-1ee77c3c8b3d
+```
+
+Le même cycle a été joué sans incident, depuis la version web de l'application : alerte 7
+ouverte à 1007 ppm, pic à 2500 ppm, ventilation activée depuis l'écran du capteur, commande
+`executed` en 55 ms, alerte revenue à la normale à 789 ppm. 308 mesures et une seule ligne.
+Captures `docs/preuves/J5-alerte-en-cours.png` et `docs/preuves/J5-retour-a-la-normale.png`.
+
+- Conclusion : réussi
+- Correction ou limite identifiée : l'alerte devient visible au passage suivant du job, 0 à 5 secondes après la mesure, puis au rafraîchissement du mobile, jusqu'à 15 secondes. Les heures des traces sont celles du job, 3 à 5 secondes après celles du capteur
+
+## R13, reproductibilité et terminal
+
+- Scénario et responsable : R13, Jérémy Perret
+- Version du projet et environnement : J5, Windows 11 avec Docker Desktop, Node 24, Git Bash
+- Conditions initiales et paramètres : copie des fichiers suivis du dépôt dans un dossier neuf, sans `.env` ni `node_modules`. La pile de travail est arrêtée pour libérer les ports, et la copie tourne sous le nom de projet `campus-r13`, donc avec des volumes vides. Images Docker déjà en cache sur la machine
+- Action effectuée : les commandes du README, dans l'ordre
+
+```sh
+cp .env.example .env
+docker compose up -d --build
+curl http://localhost:3000/health
+curl "http://localhost:3000/alerts?status=active"
+cd backend && npm ci && npm test && npm run typecheck
+cd mobile && npm ci && npm test && npm run typecheck
+docker compose stop && docker compose start
+```
+
+- Résultat attendu : configuration compréhensible, état persistant conforme à la documentation, parcours principal démontrable, adresse du backend adaptée au terminal
+- Résultat observé et preuve : `up` en 14 secondes, `/health` à `ok` sur les quatre composants 10 secondes plus tard, Grafana répond. `/rooms` rend les trois salles, l'historique a sa première tranche, aucune alerte au départ. 63 tests backend et 54 tests mobile passent, typecheck compris, avec Expo 57.0.22 installé par `npm ci`. Les trois alertes s'ouvrent seules 58 secondes après le démarrage, à 1004, 1009 et 1012 ppm, comme l'annonce le README. Après `stop` puis `start`, les 63 mesures sont toujours en base
+- Conclusion : partiel
+- Correction ou limite identifiée : le README ne disait rien de Windows, ni de `npm ci` avant les tests, ni du pare-feu qui bloque le téléphone. Ajoutés. Non rejoué ici : `npx expo start` et l'iPhone, donc l'adresse du backend déduite par le téléphone. Le premier `docker compose up --build` sur une machine neuve télécharge les images et prend plusieurs minutes
 
 ## Fiche vierge
 
