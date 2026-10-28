@@ -2,41 +2,37 @@
 
 ## Problème
 
-On stocke du métier (capteurs, salles, utilisateurs, droits, commandes) et de la télémétrie datée.
-Trois capteurs toutes les 2 secondes font 130 000 lignes par jour, 4,3 millions avec 100 objets.
+Du métier (capteurs, salles, utilisateurs, droits, commandes) et de la télémétrie datée. Trois
+capteurs toutes les 2 secondes font 130 000 lignes par jour, 4,3 millions avec 100 objets.
 
 ## Options
 
 PostgreSQL, PostgreSQL avec TimescaleDB, MongoDB, InfluxDB, Cassandra, ClickHouse, ou deux bases.
 
-| Solution | Devient pertinente à partir de |
+| Solution | Pertinente |
 |---|---|
 | PostgreSQL seul | jusqu'à quelques milliers de points par seconde |
-| TimescaleDB | quand on garde des mois de données et qu'on veut compression et rétention |
+| TimescaleDB | sur des mois de données, avec compression et rétention |
 | Cassandra | au-delà de 5 000 à 10 000 points par seconde |
-| InfluxDB, QuestDB, ClickHouse | des centaines de milliers de lignes par seconde |
+| InfluxDB, QuestDB, ClickHouse | à des centaines de milliers de lignes par seconde |
 
 ## Choix et compromis
 
-PostgreSQL 18.6 avec TimescaleDB 2.30.0, une seule base. Nos données sont pleines de liens à
-garantir par clés étrangères, et la déduplication est une contrainte d'unicité que la base doit
-tenir, sinon deux consommateurs insèrent le même message. MongoDB a des index uniques, mais
-joindre capteurs, salles, utilisateurs et droits l'obligerait à dénormaliser, donc à rendre les
-droits incohérents.
+PostgreSQL 18.6 avec TimescaleDB 2.30.0, une seule base. Nos données sont pleines de clés
+étrangères, et la déduplication est une contrainte d'unicité tenue par la base. MongoDB devrait
+dénormaliser capteurs, salles, utilisateurs et droits, au risque de droits incohérents.
 
-TimescaleDB est une extension, pas une autre base. La télémétrie devient une hypertable, le reste
-garde ses tables normales et ses clés étrangères. Le gain concret est `add_retention_policy`, qui
-supprime les mesures au delà d'une durée choisie, là où le sujet demande un historique borné.
+TimescaleDB est une extension : la télémétrie passe en hypertable, le reste ne change pas.
+`add_retention_policy` borne l'historique comme le demande le sujet.
 
-Deux bases coûteraient la perte de la clé étrangère entre une mesure et son capteur. Section
-révisée en J2, où une seconde base a été ajoutée pour les messages bruts, pas pour les mesures
-consolidées. Ce qui est écarté ici le reste, voir `docs/decisions/J2/08-base-brute-mongodb.md`.
+Deux bases casseraient la clé étrangère entre une mesure et son capteur. Révisé en J2 : une
+seconde base existe pour le brut, pas pour le consolidé (`docs/decisions/J2/08-base-brute-mongodb.md`).
 
 ## Aide de l'IA
 
-Deux affirmations fausses ont été corrigées. InfluxDB sait faire des jointures depuis sa version
-3, et MongoDB a bien des index uniques. L'IA a aussi avancé que le pilote synchrone empêchait une
-course sur un doublon. Supprimé, avec `ON CONFLICT DO NOTHING` il n'y a pas de test préalable.
+Corrigé : InfluxDB fait des jointures depuis sa version 3, et MongoDB a des index uniques.
+Supprimé : « le pilote synchrone évite une course sur un doublon », car `ON CONFLICT DO NOTHING`
+ne fait pas de test préalable.
 
 ## Vérification
 
@@ -45,10 +41,10 @@ docker compose --profile tools run --rm tools incident sensor-001 duplicate
 docker compose exec postgres psql -U campus -d campus -tAc "select count(*) from (select device_id, message_id from telemetry group by device_id, message_id having count(*)>1) x"
 ```
 
-Résultat : 0 doublon en base, et l'incident `delay` ne fait pas reculer `device_state.recorded_at`.
+0 doublon, et l'incident `delay` ne fait pas reculer `device_state.recorded_at`.
 
 ## Limite
 
-Le volume est cent fois sous le premier seuil du tableau, donc ce qui ferait changer d'avis est un
-changement d'échelle. Les hypertables sont sous Apache 2.0, la compression et les agrégats
-continus sous Timescale License, gratuite tant qu'on ne revend pas la base en service hébergé.
+Notre volume est cent fois sous le premier seuil, seul un changement d'échelle ferait changer
+d'avis. Hypertables sous Apache 2.0, compression et agrégats continus sous Timescale License,
+gratuite tant qu'on ne revend pas la base en service hébergé.

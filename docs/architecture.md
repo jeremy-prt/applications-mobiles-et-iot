@@ -11,8 +11,7 @@ flowchart LR
     B -->|MQTT commandes| M
 ```
 
-Le consommateur MQTT n'écrit pas dans PostgreSQL. Le pourquoi et ce que ça coûte sont dans
-`docs/decisions/J2/08-base-brute-mongodb.md`.
+Le consommateur MQTT n'écrit pas dans PostgreSQL : voir `docs/decisions/J2/08-base-brute-mongodb.md`.
 
 ## Technologies retenues
 
@@ -38,13 +37,9 @@ Le consommateur MQTT n'écrit pas dans PostgreSQL. Le pourquoi et ce que ça co�
 | Stockage local | AsyncStorage | 2.2.0 |
 | Interface | React Native Paper | 5.15.3 |
 
-Prévues et non livrées : `@fastify/jwt` et `argon2` sont installées dans le backend mais
-aucun code ne les appelle, `expo-secure-store` et `expo-camera` ne sont pas installées.
-L'authentification et le scan de QR sont hors du livrable, voir `docs/J5.md`.
-
-Aucune bibliothèque d'état global. TanStack Query gère les données du serveur, le jeton tient
-dans un contexte React. Le choix de chaque brique et ce qu'elle coûte sont dans
-`docs/decisions/J1/`.
+`@fastify/jwt` et `argon2` sont installées mais jamais appelées. `expo-secure-store` et
+`expo-camera` ne sont pas installées. Authentification et scan de QR sont hors livrable
+(`docs/J5.md`). Pas d'état global : TanStack Query suffit. Choix : `docs/decisions/J1/`.
 
 ## Organisation du code
 
@@ -58,10 +53,9 @@ backend/src/
   http/       routes Fastify
 ```
 
-Architecture en couches (n-layer). Les entrées (`http/`, `mqtt/`, `jobs/`) appellent les règles
-de `domain/` et la base de `db/`, jamais l'inverse. `domain/` n'importe ni la base, ni le broker,
-ni Fastify. Hexagonale, CQRS et microservices ont été examinés et écartés, voir
-`docs/decisions/J1/04-architecture-du-backend.md`.
+Architecture en couches : `http/`, `mqtt/` et `jobs/` appellent `domain/` et `db/`, jamais
+l'inverse. `domain/` n'importe ni la base, ni le broker, ni Fastify. Hexagonale, CQRS et
+microservices écartés : `docs/decisions/J1/04-architecture-du-backend.md`.
 
 ```
 mobile/src/
@@ -71,157 +65,123 @@ mobile/src/
   lib/         fonctions sans dépendance, cache, détection du réseau, horloge
 ```
 
-Seul `app/` connaît les routes, seul `api/` appelle le réseau. Les trois écrans lisent la même
-réponse de `GET /rooms` sous une seule clé de cache. Le découpage par domaine a été examiné et
-écarté, voir `docs/decisions/J1/07-architecture-de-l-application-mobile.md`.
+Seul `app/` connaît les routes, seul `api/` appelle le réseau. Les trois écrans partagent la clé
+de cache de `GET /rooms`. Voir `docs/decisions/J1/07-architecture-de-l-application-mobile.md`.
 
 ## Identité des objets et topics MQTT
 
-Les identifiants stables `sensor-001` à `sensor-003` sont déclarés dans
-`infra/kit/devices.json`, et chaque capteur a son propre client MQTT. Un objet est identifié
-par son `device_id`, présent dans le topic et dans le corps du message. Le backend refuse un
-message dont les deux ne correspondent pas. Le `room_id` du message n'est qu'une affectation
-de départ, c'est notre registre qui fait foi ensuite.
+Les objets `sensor-001` à `sensor-003` sont déclarés dans `infra/kit/devices.json`. Le backend
+refuse un message si le `device_id` du topic diffère de celui du corps. Le `room_id` du message
+n'est qu'une affectation de départ.
 
-Le registre est la table `devices`, et sa colonne `autorise` porte le droit d'écrire des
-mesures. Elle est posée à l'enrôlement, jamais par un message entrant : une télémétrie d'un
-objet absent du registre est refusée, là où elle créait l'objet et sa salle avant J3. Identité,
-existence et autorisation sont donc trois choses distinctes, voir
+Seuls les objets autorisés du registre (table `devices`, colonne `autorise`, posée à
+l'enrôlement) écrivent des mesures. Avant J3, un objet inconnu était créé avec sa salle. Voir
 `docs/decisions/J3/13-registre-des-objets-autorises.md`.
 
-L'identité est conservée partout : MongoDB garde celle extraite du topic avec le message brut,
-PostgreSQL sépare l'historique et l'état courant par `device_id`, et chaque trace porte
-`deviceId`, `eventId` et `topic`.
+L'identité suit le message jusqu'aux traces (`deviceId`, `eventId`, `topic`).
 
-| Topic | Sens | Retained | Ce que le backend en fait |
+| Topic | Sens | Retained | Usage |
 |---|---|---|---|
-| `campus/v1/devices/{device_id}/telemetry` | objet vers backend | non | Mesures, écrites dans l'historique |
-| `campus/v1/devices/{device_id}/state` | objet vers backend | oui | Ventilation et `boot_id` de la session |
-| `campus/v1/devices/{device_id}/availability` | objet ou broker vers backend | oui | Objet joignable ou non |
-| `campus/v1/devices/{device_id}/commands` | backend vers objet | non | Publication d'une commande en QoS 1, jamais retained, sinon l'objet la recevrait à chaque reconnexion |
-| `campus/v1/devices/{device_id}/results` | objet vers backend | non | Résultat d'une commande, rattaché par son `command_id`. Il passe par la zone brute et le job, comme une mesure |
+| `campus/v1/devices/{device_id}/telemetry` | objet vers backend | non | Mesures |
+| `campus/v1/devices/{device_id}/state` | objet vers backend | oui | Ventilation et `boot_id` |
+| `campus/v1/devices/{device_id}/availability` | objet ou broker vers backend | oui | Joignable ou non |
+| `campus/v1/devices/{device_id}/commands` | backend vers objet | non | QoS 1, jamais retained, sinon renvoyée à chaque reconnexion |
+| `campus/v1/devices/{device_id}/results` | objet vers backend | non | Résultat par `command_id`, traité comme une mesure |
 
-Le backend s'abonne avec `+` pour couvrir tous les objets, en QoS 1 et avec une session
-persistante, pour que le broker garde les messages publiés pendant son absence. La portée
-réelle de cette protection est mesurée dans `docs/J3.md`, scénario 8.
+Le backend s'abonne avec `+`, en QoS 1 et session persistante : le broker garde les messages
+pendant son absence (mesuré dans `docs/J3.md`, scénario 8).
 
-Le `message_id` d'une mesure commence par le `boot_id` que l'objet publie sur `state`. Une
-mesure dont le préfixe ne correspond pas est acceptée mais signalée : le compte MQTT étant
-partagé entre les objets du kit, c'est une détection et pas une protection. Voir
-`docs/decisions/J3/10-identite-des-objets-et-usurpation.md`.
+Le `message_id` commence par le `boot_id` publié sur `state`. Sinon la mesure est acceptée mais
+signalée. Le compte MQTT est partagé, donc c'est une détection, pas une protection
+(`docs/decisions/J3/10-identite-des-objets-et-usurpation.md`).
 
 ## Validation des messages
 
-Toute la validation est dans le job de consolidation, jamais dans le consommateur MQTT. Celui
-ci écrit le message tel qu'il arrive dans la zone brute, y compris illisible, ce qui permet
-d'expliquer après coup ce qu'un capteur avait envoyé.
+Le consommateur écrit tout tel quel dans la zone brute, même illisible. Le job valide ensuite.
 
 | Contrôle | Règle | Où |
 |---|---|---|
-| Message lisible | JSON valide, sinon le texte est conservé | `jobs/consolidation.ts` |
-| Structure et types | Schéma Zod du contrat du kit | `schemas/mqtt.ts` |
-| Bornes physiques | Température de -40 à 85 °C, CO2 de 0 à 40000 ppm | `schemas/mqtt.ts` |
-| Date d'observation | Au plus 10 secondes dans l'avenir | `domain/fraicheur.ts` |
-| Cohérence d'identité | `device_id` du topic égal à celui du message | `jobs/consolidation.ts` |
-| Objet autorisé | `device_id` présent dans le registre et autorisé | `jobs/consolidation.ts` |
-| Doublon | Unicité de `(device_id, message_id, recorded_at)` en base | `db/mesures.ts` |
+| Message lisible | JSON, sinon texte conservé | `jobs/consolidation.ts` |
+| Structure et types | Schéma Zod du kit | `schemas/mqtt.ts` |
+| Bornes physiques | -40 à 85 °C, 0 à 40000 ppm | `schemas/mqtt.ts` |
+| Date d'observation | Au plus 10 s dans l'avenir | `domain/fraicheur.ts` |
+| Cohérence d'identité | Même `device_id` (topic et corps) | `jobs/consolidation.ts` |
+| Objet autorisé | Autorisé dans le registre | `jobs/consolidation.ts` |
+| Doublon | `(device_id, message_id, recorded_at)` unique | `db/mesures.ts` |
 | Antériorité | L'état courant ne recule pas | `domain/fraicheur.ts` |
-| Résultat de commande | `command_id` connu, résultat envoyé par l'objet destinataire | `jobs/consolidation.ts` |
-| Alerte CO2 | Évaluée sur la mesure qui prend l'état courant, jamais sur une mesure en retard ou rejetée | `domain/alertes.ts` |
+| Résultat de commande | `command_id` connu, bon objet | `jobs/consolidation.ts` |
+| Alerte CO2 | Sur la mesure qui devient l'état courant | `domain/alertes.ts` |
 
-Un message refusé garde son contenu d'origine et son motif dans la zone brute, et produit une
-trace portant `eventType`, `deviceId`, `eventId` et `reason`.
+Un message refusé garde son motif dans la zone brute et produit une trace (`eventType`,
+`deviceId`, `eventId`, `reason`).
 
 ## Fraîcheur d'une donnée
 
-Une mesure est ancienne quand son heure d'observation dépasse le seuil de 30 secondes. Le
-calcul est fait par le backend, parce que l'horloge du téléphone peut différer, et exposé dans
-`is_stale`.
+Une mesure est ancienne après 30 secondes. Le backend calcule `is_stale`, car l'horloge du
+téléphone peut différer. Le job trace `mesure_ancienne` à chaque bascule, pour dater l'arrêt d'un
+capteur. Cet état est en mémoire : après un redémarrage, le premier passage ne trace rien.
 
-Ce verdict est aussi journalisé, et seulement quand il change. Le job de consolidation compare
-à chaque passage l'état de chaque objet à celui du passage précédent, et n'écrit une ligne
-`mesure_ancienne` qu'à la bascule, dans un sens comme dans l'autre. Sans ça, rien ne permettait
-de dire à quelle heure un capteur s'était tu. Cet état est gardé en mémoire : après un
-redémarrage, le premier passage réapprend sans rien annoncer.
-
-Fraîcheur et disponibilité sont deux informations distinctes. Un capteur en pause reste
-connecté au broker, donc `availability` reste `online` pendant que `is_stale` passe à vrai.
+Un capteur en pause reste `online` alors que `is_stale` passe à vrai.
 
 ## État de santé du service
 
-`GET /health` dit ce que la chaîne fait vraiment, et pas seulement si la base répond. Quatre
-composants sont interrogés, parce que l'ingestion a besoin des quatre : le broker apporte les
-messages, MongoDB les conserve, le job de consolidation les valide, PostgreSQL reçoit le
-résultat. Le job est en cause quand son dernier passage réussi date de plus de trois
-périodes, soit 15 secondes. Ajouté en J5 : avant, un job bloqué laissait `/health` à `ok`
-pendant que plus aucune mesure n'atteignait l'écran.
+`GET /health` vérifie le broker, MongoDB, le job de consolidation et PostgreSQL, car l'ingestion
+a besoin des quatre. Le job est en cause si son dernier passage réussi date de plus de 15 secondes
+(trois périodes). Ajouté en J5 : un job bloqué laissait `/health` à `ok`.
 
-| État | Ce qu'il veut dire | Code HTTP |
+| État | Sens | Code HTTP |
 |---|---|---|
 | `ok` | Les quatre répondent | 200 |
-| `degraded` | L'API sert encore ce qu'elle a en base, mais l'ingestion est cassée | 200 |
-| `down` | PostgreSQL ne répond pas, il n'y a plus rien à servir | 503 |
+| `degraded` | Lecture possible, ingestion cassée | 200 |
+| `down` | PostgreSQL ne répond pas | 503 |
 
-Le code HTTP et le corps ne s'adressent pas aux mêmes lecteurs. Un orchestrateur lit le code
-pour décider de redémarrer : un broker absent ne se répare pas par un redémarrage, donc il ne
-doit pas faire échouer la sonde. Un exploitant lit le corps, qui nomme le composant fautif.
-
-Avant J3, un seul `select 1` décidait de tout : l'API annonçait `ok` pendant que MongoDB était
-mort et que chaque message reçu était perdu.
+Un broker absent ne se répare pas en redémarrant, donc il ne fait pas échouer la sonde. Le corps
+nomme le composant fautif. Avant J3, un simple `select 1` annonçait `ok` avec MongoDB mort.
 
 ## Actualisation côté mobile
 
-Une réponse gardée en cache fige le champ `is_stale`, donc passé 30 secondes l'écran annonce
-« fraîcheur inconnue » au lieu de répéter un verdict devenu faux. Le cache hors ligne est dans
-`docs/decisions/J2/09-cache-hors-ligne-et-fraicheur.md`.
+Une réponse en cache fige `is_stale` : après 30 secondes, l'écran affiche « fraîcheur inconnue »
+(`docs/decisions/J2/09-cache-hors-ligne-et-fraicheur.md`).
 
 | Déclencheur | Comportement |
 |---|---|
-| Ouverture d'un écran | Appel si les données en cache ont plus de 15 secondes |
-| Retour de l'application au premier plan | Nouvel appel |
-| Retour du réseau | Nouvel appel |
-| Pendant qu'un écran est ouvert | Rafraîchissement toutes les 15 secondes |
-| Après l'envoi d'une commande | Interrogation du suivi toutes les 2 secondes, jusqu'à un statut définitif ou 30 secondes |
-| Après une commande exécutée | Nouvel appel à `GET /rooms`, pour lire le nouvel état de la ventilation |
-| Détail d'un capteur ouvert | `GET /alerts` de ce capteur toutes les 15 secondes, pour l'historique des alertes |
+| Ouverture d'un écran | Appel si le cache a plus de 15 s |
+| Retour au premier plan ou du réseau | Nouvel appel |
+| Écran ouvert | Toutes les 15 s |
+| Commande envoyée | Suivi toutes les 2 s, jusqu'au statut définitif ou 30 s |
+| Commande exécutée | `GET /rooms` |
+| Détail d'un capteur | `GET /alerts` du capteur toutes les 15 s |
 
-Le plafond du suivi est de 30 secondes et pas 15, parce que le backend tranche `unknown` au
-rythme de son job, donc jusqu'à 20 secondes après la demande.
-
-Le rafraîchissement périodique s'arrête en arrière-plan, donc un écran laissé derrière ne se
-met pas à jour tout seul.
+Suivi de 30 secondes, car le backend tranche `unknown` au rythme du job, jusqu'à 20 secondes
+après la demande. Rien en arrière-plan.
 
 ## Règles à documenter
 
-Ces valeurs sont déclarées avant les tests de recette, comme le demande le sujet.
+Déclarées avant la recette, comme demandé.
 
-| Paramètre | Valeur | Pourquoi cette valeur |
+| Paramètre | Valeur | Pourquoi |
 |---|---|---|
-| Tolérance sur une date d'observation dans l'avenir | 10 secondes | Couvre l'écart d'horloge mesuré en J2 entre le Mac et le conteneur, 3 secondes, avec de la marge. Une mesure datée au delà passerait devant l'état courant et l'y bloquerait tout en restant annoncée fraîche |
-| Bornes acceptées pour une mesure | -40 à 85 °C, 0 à 40000 ppm | Celles d'un capteur, pas celles du modèle du kit qui reste entre 420 et 2500 ppm. Refuser tout ce qui sort du modèle jetterait les valeurs anormales mais vraies, celles qu'une supervision doit signaler |
-| Seuil de fraîcheur d'une mesure | 30 secondes | Les capteurs publient toutes les 2 secondes : 30 secondes valent 15 mesures manquées, ce n'est plus un aléa réseau. Assez long pour absorber une reconnexion du broker, assez court pour le montrer en démonstration |
-| Expiration d'une commande | 10 secondes | C'est nous qui la choisissons : le contrat impose seulement une date future, et l'outil du kit utilise 15 secondes. Passé ce délai, l'objet refuse d'exécuter |
-| Attente maximale d'une commande | 15 secondes | Plus longue que l'expiration. Abandonner avant laisserait l'objet exécuter après notre abandon, et on afficherait un échec faux. Vérifiée par le job, donc tranchée entre 15 et 20 secondes |
-| Attente de l'accusé du broker avant de répondre au POST d'une commande | 2 secondes au plus | Le mobile reçoit `published_at` dans le cas normal, où l'accusé arrive en quelques millisecondes. Broker coupé, il n'attend pas plus : la réponse part sans `published_at` et l'attente maximale de la commande prend le relais |
-| Alerte CO2, déclenchement | 1000 ppm | Au-dessus de la valeur repère de 800 ppm du HCSP |
-| Alerte CO2, retour à la normale | 800 ppm | Retour à la valeur repère. L'écart de 200 ppm empêche l'alerte de clignoter autour d'une valeur unique |
-| Rétention de l'historique | 7 jours | Assez pour montrer une évolution sur plusieurs jours, assez court pour que la suppression automatique soit observable |
-| Taille maximale d'une page d'historique | 500 points | Borne les lectures, pour qu'une requête ne bloque pas l'ingestion |
-| Taille maximale d'une page d'alertes | 100 alertes | Même raison. Le mobile en lit 5 par capteur |
-| Retard toléré du job avant de le dire en cause | 3 périodes, 15 secondes | Un passage lent sous charge ne doit pas faire passer `/health` en `degraded` |
-| Rafraîchissement du mobile | 15 secondes | Sous le seuil de fraîcheur, donc l'affichage ne passe jamais en ancien à cause de notre propre rythme. Rafraîchir toutes les 2 secondes afficherait des variations d'un point de CO2 et viderait la batterie |
-| Période du job de consolidation | 5 secondes | Une mesure attend au pire un passage avant d'être visible. 5 secondes valent un sixième du seuil de fraîcheur, et un tiers du rythme du mobile |
-| Largeur d'une tranche d'agrégat | 5 minutes | 72 tranches couvrent six heures, sous la limite de 500 points. À la mesure brute, six heures feraient 10 000 points |
-| Rétention de la zone brute | 7 jours | La même que l'historique consolidé : le brut sert à recalculer la période qu'on affiche, pas au-delà |
-| Durée du cache sur le téléphone | 24 heures | Au-delà, des mesures de salle ne décrivent plus rien, même datées |
+| Date dans l'avenir | 10 s | Écart d'horloge de 3 s mesuré en J2, plus une marge. Au-delà, la mesure bloquerait l'état courant |
+| Bornes d'une mesure | -40 à 85 °C, 0 à 40000 ppm | Celles d'un capteur, pas du kit (420 à 2500 ppm), pour garder les valeurs anormales mais vraies |
+| Seuil de fraîcheur | 30 s | 15 mesures manquées (une toutes les 2 s) : plus un aléa réseau |
+| Expiration d'une commande | 10 s | Notre choix (le kit met 15 s). Après, l'objet refuse d'exécuter |
+| Attente maximale d'une commande | 15 s | Plus longue que l'expiration, sinon faux échec. Tranchée par le job entre 15 et 20 s |
+| Accusé du broker avant de répondre au POST | 2 s au plus | Sinon réponse sans `published_at` |
+| Alerte CO2, déclenchement | 1000 ppm | Au-dessus de la valeur repère HCSP |
+| Alerte CO2, retour à la normale | 800 ppm | Valeur repère HCSP. L'écart évite le clignotement |
+| Rétention de l'historique | 7 jours | Plusieurs jours visibles, purge observable |
+| Page d'historique | 500 points | Ne pas bloquer l'ingestion |
+| Page d'alertes | 100 alertes | Idem. Le mobile en lit 5 par capteur |
+| Retard toléré du job | 3 périodes, 15 s | Un passage lent n'est pas une panne |
+| Rafraîchissement du mobile | 15 s | Sous le seuil de fraîcheur. À 2 s : bruit et batterie vidée |
+| Période du job | 5 s | Une mesure attend au pire un passage, un sixième du seuil de fraîcheur |
+| Tranche d'agrégat | 5 min | 72 tranches pour six heures, sous 500 points (10 000 en brut) |
+| Rétention de la zone brute | 7 jours | Comme l'historique, qu'elle sert à recalculer |
+| Cache du téléphone | 24 h | Au-delà, les mesures ne décrivent plus la salle |
 
-Une seule alerte active par capteur, donc par salle ici, garantie par un index unique. Tant
-qu'elle est active, les mesures la mettent à jour au lieu d'en créer une nouvelle, et une
-mesure invalide ou en retard ne l'ouvre ni ne la ferme. Voir
-`docs/decisions/J5/17-regle-d-alerte-co2.md`. L'écart de 200 ppm vaut environ 17 mesures de montée sans
-ventilation et 5 mesures de descente avec, donc une valeur qui oscille ne les traverse pas.
+Une seule alerte active par capteur (index unique), mise à jour tant qu'elle dure. Une mesure
+invalide ou en retard ne l'ouvre ni ne la ferme. Les 200 ppm d'écart valent environ 17 mesures de
+montée sans ventilation et 5 de descente avec. Voir `docs/decisions/J5/17-regle-d-alerte-co2.md`.
 
-Le HCSP retient 800 ppm comme valeur repère d'un renouvellement d'air satisfaisant et
-1500 ppm comme valeur d'action rapide, dans son avis du 21 janvier 2022 sur la mesure du CO2
-dans les établissements recevant du public. Notre seuil de 1000 ppm est un choix entre ces
-deux valeurs, pas une norme.
+Le HCSP (avis du 21 janvier 2022) retient 800 ppm comme valeur repère et 1500 ppm comme valeur
+d'action rapide. Nos 1000 ppm sont un choix entre les deux, pas une norme.

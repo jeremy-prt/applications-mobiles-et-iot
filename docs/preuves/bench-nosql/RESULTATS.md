@@ -1,8 +1,7 @@
 # Choix de la base brute, mesuré sur un million de messages
 
-Fait le 16 septembre 2026 sur Mac Apple Silicon, les deux moteurs en conteneur, lancés l'un
-après l'autre pour qu'ils ne se gênent pas. Les messages ont la forme exacte du contrat du
-kit, avec 100 objets différents.
+16 septembre 2026, Mac Apple Silicon. Moteurs en conteneur, lancés l'un après l'autre. Messages
+au format du kit, 100 objets.
 
 ## Résultats
 
@@ -16,33 +15,23 @@ kit, avec 100 objets différents.
 
 ## Ce que ça dit
 
-L'écart décisif est l'écriture message par message, 0,152 ms contre 2,825 ms, soit 18 fois.
-C'est le cas qui compte, parce qu'un consommateur MQTT reçoit les messages un par un. Postgres
-plafonne à environ 350 messages par seconde dans ce mode, Mongo en tient 6 500.
+Ce qui compte est l'écriture message par message, 18 fois plus lente sur Postgres, car MQTT
+livre un message à la fois. Postgres plafonne vers 350 messages par seconde, Mongo 6 500. À
+1000 messages par seconde (100 objets à 0,1 seconde), Postgres devrait regrouper les écritures.
 
-À 1000 messages par seconde, ce que le kit peut produire avec 100 objets à 0,1 seconde,
-Postgres ne suivrait pas sans regrouper les écritures. Mongo passe sans rien changer.
-
-Le disque va dans le même sens, 4,4 fois moins pour Mongo. Ramené à notre volume réel de
-130 000 mesures par jour, ça fait 35 Mo par jour contre 155.
-
-Sur la requête d'agrégat, Postgres est très légèrement meilleur. L'écart est faible et ne
-compte pas, car le job tourne une fois par période et pas à chaque écran.
+Sur disque, Mongo prend 4,4 fois moins : 35 Mo par jour contre 155 pour nos 130 000 mesures.
+L'agrégat ne compte pas, il tourne une fois par période.
 
 ## Décision
 
-MongoDB pour la base brute. Il est meilleur là où ça compte, l'écriture au fil de l'eau, et il
-accepte un message sans schéma, y compris les messages invalides qu'une table refuserait.
-PostgreSQL reste la base consolidée, avec les objets, les salles, les utilisateurs, les droits
-et les commandes, et leurs clés étrangères. Le détail est dans
+MongoDB pour la base brute : plus rapide au fil de l'eau, et sans schéma, donc il garde aussi
+les messages invalides. PostgreSQL pour les données consolidées. Détail dans
 `docs/decisions/J2/08-base-brute-mongodb.md`.
 
 ## Ce qu'il faut dire honnêtement
 
-On reçoit 1,5 message par seconde. Postgres tenait déjà 230 fois ce débit et Mongo 4 300 fois,
-donc les deux convenaient. La mesure ne sert pas à prouver qu'on a besoin de Mongo, elle sert à
-montrer à partir de quand le choix compterait. Ce qu'on voulait, c'était trancher par la mesure
-et pas par un comparatif lu en ligne.
+On reçoit 1,5 message par seconde. Postgres tenait 230 fois ce débit, Mongo 4 300 fois : les
+deux convenaient.
 
 ## Comment reproduire
 

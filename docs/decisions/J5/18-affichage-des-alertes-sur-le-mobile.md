@@ -2,53 +2,46 @@
 
 ## Problème
 
-Le téléphone doit montrer qu'une salle est en alerte, puis qu'elle est revenue à la normale,
-sur plusieurs salles à la fois. Il faut décider d'où vient l'information, qui décide du seuil,
-et comment la rendre lisible sans se fier à la seule couleur.
+Le téléphone doit montrer qu'une salle est en alerte, puis revenue à la normale. Qui décide du
+seuil, d'où vient l'information, et comment ne pas dépendre de la couleur seule ?
 
 ## Options
 
-Le mobile compare lui-même le CO2 reçu à 1000 ppm.
-
-Le mobile interroge `GET /alerts` sur chaque écran, en plus de `GET /rooms`.
-
-Le backend ajoute l'alerte active à chaque objet de `GET /rooms`, et le mobile n'appelle
-`GET /alerts` que pour l'historique d'un capteur.
+- Le mobile compare lui-même le CO2 à 1000 ppm.
+- Le mobile appelle `GET /alerts` sur chaque écran, en plus de `GET /rooms`.
+- `GET /rooms` inclut l'alerte active, et `GET /alerts` sert seulement à l'historique d'un
+  capteur.
 
 ## Choix et compromis
 
-L'alerte active arrive avec `GET /rooms`, dans le champ `alert` de chaque objet. Les trois
-écrans lisent déjà cette réponse sous une seule clé de cache : l'accueil, la salle et le
-capteur ne peuvent donc pas se contredire, et l'alerte suit le cache hors ligne avec la date
-de la réponse. Le détail d'un capteur appelle en plus `GET /alerts` pour ses 5 dernières
-alertes. C'est là qu'on voit le retour à la normale, car une alerte fermée disparaît de
-`/rooms`.
+L'alerte active arrive dans le champ `alert` de `GET /rooms`. Les trois écrans lisent cette
+réponse sous une seule clé de cache, donc ils ne se contredisent pas, et l'alerte suit le cache
+hors ligne. Le détail d'un capteur appelle aussi `GET /alerts` pour ses 5 dernières alertes,
+car une alerte fermée disparaît de `/rooms`.
 
-Le mobile ne compare jamais une valeur à un seuil. Avec l'hystérésis, il aurait un autre avis
-que le backend entre 800 et 1000 ppm.
+Le mobile ne compare jamais une valeur au seuil : avec l'hystérésis, il contredirait le backend
+entre 800 et 1000 ppm.
 
-L'accueil compte les salles en alerte dans un bandeau. Chaque carte de salle porte le texte
-« Alerte CO2 » et une bordure. Le détail affiche l'ouverture, le pic et la condition de
-retour, « Retour à la normale sous 800 ppm », pour que l'alerte ne paraisse pas bloquée
-entre les deux seuils. Les couleurs sont `error` et `errorContainer` du thème Material 3,
-dont le contraste avec leur fond est garanti en clair comme en sombre. Le texte dit la même
-chose que la couleur. Les blocs portent le rôle `alert`, et iOS annonce une nouvelle alerte
-au lecteur d'écran.
+Un bandeau sur l'accueil compte les salles en alerte. Chaque carte porte « Alerte CO2 » et une
+bordure. Le détail affiche l'ouverture, le pic et « Retour à la normale sous 800 ppm », pour
+que l'alerte ne semble pas bloquée. Les couleurs `error` et `errorContainer` de Material 3 sont
+contrastées en clair et en sombre, et doublées par le texte. Les blocs ont le rôle `alert`,
+annoncé par iOS au lecteur d'écran.
 
-Ce que ça coûte : `GET /rooms` grossit d'un objet par alerte active. Une alerte est vue au
-rafraîchissement suivant, jusqu'à 15 secondes après son ouverture par le backend.
+Coût : `GET /rooms` grossit d'un objet par alerte active, et une alerte apparaît jusqu'à 15
+secondes après son ouverture.
 
 ## Aide de l'IA
 
-L'IA a proposé de comparer le CO2 au seuil sur le téléphone, pour colorer la valeur. On l'a
-refusé, pour la raison de l'hystérésis ci-dessus.
+L'IA a proposé de comparer le CO2 au seuil sur le téléphone pour colorer la valeur. Refusé à
+cause de l'hystérésis.
 
 ## Vérification
 
-`mobile/src/lib/alertes.test.ts` : le décompte des salles en alerte, le résumé, la condition
-de retour, et les libellés d'une alerte en cours et terminée. Le rendu est capturé sur la
-version web de l'application, dans `docs/preuves/J5-salles-en-alerte.png`,
-`J5-alerte-en-cours.png` et `J5-retour-a-la-normale.png`.
+`mobile/src/lib/alertes.test.ts` teste le décompte, le résumé, la condition de retour et les
+libellés en cours et terminée. Captures de la version web :
+`docs/preuves/J5-salles-en-alerte.png`, `J5-alerte-en-cours.png` et
+`J5-retour-a-la-normale.png`.
 
 ```sh
 cd mobile && npm test
@@ -56,6 +49,7 @@ cd mobile && npm test
 
 ## Limite
 
-Le rendu n'a pas été vu sur l'iPhone, seulement dans un navigateur à la taille d'un
-téléphone. Ce qui ferait changer d'avis : un besoin d'être prévenu application fermée. Il
-faudrait alors une notification poussée par le backend.
+Le rendu n'a été vu que dans un navigateur à la taille d'un téléphone, pas sur l'iPhone.
+
+Ce qui ferait changer d'avis : devoir prévenir application fermée. Il faudrait une notification
+poussée par le backend.

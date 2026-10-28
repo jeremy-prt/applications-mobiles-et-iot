@@ -1,8 +1,7 @@
 # Kit fourni par l'école
 
-Le dossier `kit/` contient le kit livré par l'école, intégré tel quel. Nous ne le
-modifions pas : notre backend et notre base sont ajoutés par le `compose.yaml` à la racine
-du dépôt, qui inclut celui du kit.
+`kit/` contient le kit de l'école, tel quel et jamais modifié. Le `compose.yaml` racine inclut
+celui du kit et ajoute notre backend et notre base.
 
 | | |
 |---|---|
@@ -12,13 +11,13 @@ du dépôt, qui inclut celui du kit.
 
 ## Paramètres du kit
 
-Les valeurs par défaut sont conservées, à l'exception de celles listées ici.
+Valeurs par défaut, sauf celles listées ici.
 
 | Paramètre | Valeur | Remarque |
 |---|---|---|
-| `PUBLISH_INTERVAL` | 2 secondes | Valeur par défaut du kit |
-| `devices.json` | 3 objets, salles 203 à 205 | Configuration initiale du kit, non modifiée |
-| `MQTT_PORT` | 1883 | Valeur par défaut |
+| `PUBLISH_INTERVAL` | 2 secondes | Défaut du kit |
+| `devices.json` | 3 objets, salles 203 à 205 | Config initiale, non modifiée |
+| `MQTT_PORT` | 1883 | Défaut |
 
-Toute modification de ces paramètres pour un test doit être notée dans le journal de la
-journée concernée, parce qu'elle change le comportement observé.
+Changer un de ces paramètres pour un test se note dans le journal du jour, car ça change le
+comportement observé.

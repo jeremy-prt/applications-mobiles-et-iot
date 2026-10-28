@@ -1,33 +1,32 @@
 # Recette
 
-Les 13 scénarios obligatoires du sujet. Chacun doit avoir un résultat déclaré, même en cas
-d'échec. Statuts possibles : réussi, partiel, échoué.
-
-Les seuils et délais utilisés sont déclarés avant les tests, dans docs/architecture.md.
+Les 13 scénarios obligatoires du sujet, chacun avec un résultat déclaré, même en cas d'échec.
+Statuts : réussi, partiel, échoué. Seuils et délais déclarés avant les tests dans
+docs/architecture.md.
 
 ## Suivi
 
 | Ref | Scénario | Statut | Résultat observé | Preuve |
 |---|---|---|---|---|
-| R01 | Mesure de bout en bout | réussi | Le même `message_id` et les mêmes valeurs se retrouvent sur le broker, dans la zone brute, dans la base consolidée et dans l'API | Fiche R01 |
-| R02 | Message invalide | réussi | Aucune mesure créée, le service répond toujours, et le message fautif est conservé dans la zone brute avec son motif. Complété en J3 par le JSON illisible et la valeur impossible | Fiche R02, et `docs/J3.md` scénarios 3a à 3c |
-| R03 | Doublon et retard | réussi | Le doublon est reçu deux fois dans la zone brute, une seule ligne en base. La mesure en retard entre dans l'historique, l'état courant continue d'avancer | Fiche R03, et `docs/J3.md` scénarios 4 et 5 |
-| R04 | Capteur silencieux | réussi | `is_stale` passe à vrai entre 25 et 40 secondes, `availability` reste `online`. Depuis J3 la bascule est aussi tracée | Fiche R04, et `docs/J3.md` scénario 6 |
-| R05 | Téléphone hors ligne | partiel | Mode Avion sur iPhone : les valeurs restent, le bandeau dit « Téléphone hors ligne » et les date, la fraîcheur n'est plus affirmée. Le blocage d'une commande hors ligne est codé en J4, pas encore exercé sur l'iPhone | `docs/preuves/J2-hors-ligne.png` |
-| R06 | Reconnexion et cycle de vie | partiel | Le retour du serveur ramène les valeurs en direct, sans chargement infini. L'arrière-plan et les abonnements dupliqués restent à exercer sur l'appareil | Fiche R06 |
-| R07 | Broker interrompu | réussi | `/health` et `/rooms` répondent pendant la coupure, reconnexion toutes les 2 secondes, ingestion reprise. Le mobile affiche « fraîcheur inconnue » au lieu de « donnée récente » | Fiche R07, et `docs/J3.md` scénario 7 |
-| R08 | Commande exécutée | partiel | Par l'API : `pending`, puis `executed` avec le `command_id`, et le CO2 baisse. En J5, depuis l'application servie dans un navigateur : « Commande confirmée », puis l'alerte CO2 se ferme. Le parcours depuis l'iPhone reste à faire | Fiche R08, et fiche R12 |
-| R09 | Commande sans réponse | partiel | Par l'API : `pending` jusqu'à 15 s, `unknown` à 20 s, jamais `failed`. Une réponse tardive est appliquée avec `late` à vrai. L'affichage sur l'iPhone reste à voir | Fiche R09 |
-| R10 | Association et permission caméra | à faire | Le scan de QR n'est plus planifié par aucune journée depuis la réécriture du sujet, mais reste dans le périmètre | |
-| R11 | Autorisation | à faire | Décalé : les droits ne sont plus au programme de J3 depuis la réécriture du sujet | |
-| R12 | Alerte et retour à la normale | réussi | Une seule alerte pour 22 mesures au-dessus du seuil, revenue à la normale à 610 ppm. Le même épisode fermé par la ventilation commandée depuis l'application : 308 mesures, une ligne | Fiche R12 |
-| R13 | Reproductibilité et terminal | partiel | Copie propre du dépôt, base vide, commandes du README seules : chaîne `ok` en 14 s, 63 et 54 tests, alertes ouvertes d'elles-mêmes en une minute, données gardées après arrêt. Le lancement du mobile sur l'iPhone n'a pas été rejoué | Fiche R13 |
+| R01 | Mesure de bout en bout | réussi | Même `message_id` du broker à l'API | Fiche R01 |
+| R02 | Message invalide | réussi | Aucune mesure créée, rejet gardé en zone brute. JSON illisible et valeur impossible en J3 | Fiche R02, et `docs/J3.md` scénarios 3a à 3c |
+| R03 | Doublon et retard | réussi | Une seule ligne en base, retard gardé dans l'historique | Fiche R03, et `docs/J3.md` scénarios 4 et 5 |
+| R04 | Capteur silencieux | réussi | `is_stale` vrai entre 25 et 40 s, toujours `online`. Bascule tracée depuis J3 | Fiche R04, et `docs/J3.md` scénario 6 |
+| R05 | Téléphone hors ligne | partiel | Cache daté en mode Avion. Blocage d'une commande hors ligne codé en J4, pas testé sur l'iPhone | `docs/preuves/J2-hors-ligne.png` |
+| R06 | Reconnexion et cycle de vie | partiel | Retour en direct. Arrière-plan et abonnements pas testés sur l'appareil | Fiche R06 |
+| R07 | Broker interrompu | réussi | API disponible, ingestion reprise, mobile en « fraîcheur inconnue » | Fiche R07, et `docs/J3.md` scénario 7 |
+| R08 | Commande exécutée | partiel | `executed` par l'API. En J5, « Commande confirmée » dans l'application web. Pas testé sur l'iPhone | Fiche R08, et fiche R12 |
+| R09 | Commande sans réponse | partiel | `unknown` à 20 s, jamais `failed`. Pas vu sur l'iPhone | Fiche R09 |
+| R10 | Association et permission caméra | à faire | Plus planifié depuis la réécriture du sujet, mais toujours dans le périmètre | |
+| R11 | Autorisation | à faire | Sorti de J3 par la réécriture du sujet | |
+| R12 | Alerte et retour à la normale | réussi | Une alerte pour 22 mesures au-dessus du seuil, fermée à 610 ppm. Aussi fermée par la ventilation depuis l'application | Fiche R12 |
+| R13 | Reproductibilité et terminal | partiel | README seul sur une copie propre : tout démarre, données gardées. iPhone pas rejoué | Fiche R13 |
 
 ## Détail des scénarios
 
-Les commandes `incident` et `command` se lancent depuis la racine du dépôt. Le service `tools`
-est derrière un profil Compose, et lancer le Compose de `infra/kit` seul crée un second projet
-qui échoue sur le port 1883 déjà pris.
+Les commandes `incident` et `command` se lancent depuis la racine du dépôt, car le service
+`tools` est derrière un profil Compose. Lancer le Compose de `infra/kit` seul crée un second
+projet qui échoue sur le port 1883 déjà pris.
 
 ```sh
 docker compose --profile tools run --rm tools incident sensor-001 duplicate
@@ -35,47 +34,45 @@ docker compose --profile tools run --rm tools incident sensor-001 duplicate
 
 | Ref | Action | Attendu |
 |---|---|---|
-| R01 | Faire évoluer une mesure simulée | Le même objet et la nouvelle mesure sont identifiables dans les échanges MQTT, dans le backend et sur le mobile. L'unité et la date sont visibles |
-| R02 | `incident sensor-001 invalid` | Le traitement reste disponible, la donnée invalide ne devient pas une mesure normale, et une trace explique son rejet |
-| R03 | `incident sensor-001 duplicate` puis `incident sensor-001 delay` | Aucun doublon dans l'historique, pas de régression silencieuse du dernier état. La politique appliquée aux mesures tardives est expliquée |
-| R04 | `incident sensor-001 pause` | La mesure devient ancienne selon la règle déclarée. L'application ne prétend pas que le téléphone a perdu son réseau. La dernière valeur reste identifiable comme ancienne |
-| R05 | Couper le réseau du téléphone après une consultation réussie | Le cache est consultable, les dates sont visibles, l'état hors ligne est explicite. Une tentative de commande est bloquée avec une explication et n'est pas rejouée automatiquement au retour du réseau |
-| R06 | Rétablir le réseau, passer l'application en arrière-plan, la reprendre | Retour à des données cohérentes, pas d'abonnements ni de mises à jour dupliqués, pas de chargement infini. Expliquer aussi la restauration après fermeture complète |
-| R07 | `docker compose stop mosquitto` puis `docker compose up -d --wait mosquitto` | Le backend reste diagnosticable et se reconnecte. Le mobile ne présente pas les anciennes mesures comme fraîches. Les pertes éventuelles sont identifiées |
-| R08 | Demander l'activation de la ventilation quand l'objet est disponible | Suivi de l'attente puis d'un retour confirmé. Le CO2 simulé baisse. Un accusé de transport seul ne vaut pas preuve |
-| R09 | `incident sensor-001 no-response` puis commander | Un délai borné conduit à un échec ou à un résultat inconnu. Le mobile n'affiche jamais « activé » sans confirmation. Le comportement en cas de réponse tardive est documenté |
-| R10 | Scanner un code valide, un code invalide, puis refuser la permission caméra | Association correcte dans le premier cas, messages utiles et reprise possible dans les autres, sans blocage de l'application |
-| R11 | Tenter une commande avec un utilisateur sans droit, y compris directement sur l'API | Refus côté backend. Masquer le bouton dans l'application ne suffit pas |
-| R12 | `incident sensor-001 high-co2` puis `incident sensor-001 normal-co2` | Alerte identifiable, pas de création répétée à chaque mesure, retour à la normale selon la règle documentée |
-| R13 | Relancer le projet en suivant uniquement le README, sur le terminal prévu | Configuration compréhensible, état persistant conforme à la documentation, parcours principal démontrable, adresse du backend adaptée au terminal |
+| R01 | Faire évoluer une mesure simulée | Même objet et même mesure suivis de MQTT au mobile, avec unité et date |
+| R02 | `incident sensor-001 invalid` | Service disponible, pas de mesure créée, rejet tracé |
+| R03 | `incident sensor-001 duplicate` puis `incident sensor-001 delay` | Pas de doublon, le dernier état ne recule pas, politique des retards expliquée |
+| R04 | `incident sensor-001 pause` | Mesure marquée ancienne selon la règle, sans accuser le réseau du téléphone |
+| R05 | Couper le réseau du téléphone après une consultation | Cache daté, état hors ligne explicite. Commande bloquée et expliquée, pas rejouée au retour du réseau |
+| R06 | Rétablir le réseau, passer en arrière-plan, reprendre | Données cohérentes, sans abonnement dupliqué ni chargement infini. Restauration après fermeture expliquée |
+| R07 | `docker compose stop mosquitto` puis `docker compose up -d --wait mosquitto` | Backend diagnosticable et reconnecté, anciennes mesures pas montrées comme fraîches, pertes identifiées |
+| R08 | Activer la ventilation sur un objet disponible | Attente puis confirmation, le CO2 baisse. L'accusé de transport ne suffit pas |
+| R09 | `incident sensor-001 no-response` puis commander | Délai borné vers un échec ou un inconnu, jamais « activé » sans confirmation, réponse tardive documentée |
+| R10 | Scanner un code valide, un invalide, puis refuser la caméra | Association correcte, sinon message utile et reprise, sans blocage |
+| R11 | Commander sans droit, aussi directement sur l'API | Refus côté backend, cacher le bouton ne suffit pas |
+| R12 | `incident sensor-001 high-co2` puis `incident sensor-001 normal-co2` | Une alerte identifiable, pas une par mesure, retour à la normale selon la règle |
+| R13 | Relancer avec le seul README, sur le terminal prévu | Configuration claire, persistance conforme, parcours principal démontrable, adresse du backend adaptée au terminal |
 
 ## Observation complémentaire
 
-Faite en J3. Le kit refuse un intervalle de publication sous 0,1 seconde, donc la montée en
-charge est passée par le nombre d'objets, porté à 15 dans `infra/kit/devices.json` puis remis
-à 3. À 101 messages par seconde, le retard entre la réception d'un message et son traitement
-passe de 3 à 10 secondes, et les passages du job de consolidation s'espacent de 5 à 15
-secondes. Aucune erreur, et l'API répond toujours en 28 millisecondes. Détail et méthode dans
-`docs/J3.md`, scénario 11.
+Faite en J3. Le kit refuse un intervalle sous 0,1 seconde, donc on a monté la charge par le
+nombre d'objets : 15 dans `infra/kit/devices.json`, puis remis à 3. À 101 messages par
+seconde, le délai de traitement passe de 3 à 10 secondes et les passages du job de
+consolidation s'espacent de 5 à 15 secondes. Aucune erreur, l'API répond en 28 millisecondes.
+Méthode dans `docs/J3.md`, scénario 11.
 
-Les onze scénarios de J3 ne portent pas de référence R : ils viennent de la réécriture du
-sujet et sont numérotés dans `docs/J3.md`. Les scénarios R ci-dessus restent ceux de la
-recette générale du projet.
+Les onze scénarios de J3 viennent de la réécriture du sujet. Ils sont numérotés dans
+`docs/J3.md`, sans référence R.
 
 ## R01, mesure de bout en bout
 
 - Scénario et responsable : R01, Jérémy Perret
 - Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt, kit non modifié
 - Conditions initiales et paramètres : trois capteurs en ligne, publication toutes les 2 secondes
-- Action effectuée : lecture d'un message sur le broker, puis recherche de son `message_id` à chaque étape
+- Action effectuée : lire un message sur le broker, puis chercher son `message_id` à chaque étape
 
 ```sh
 docker compose --profile tools run --rm tools watch \
   --topic "campus/v1/devices/sensor-001/telemetry" --count 1
 ```
 
-- Résultat attendu : le même objet et la même mesure sont identifiables à chaque étape, avec leur unité et leur date
-- Résultat observé et preuve : le `message_id` `035be0d8e8664437a94696954a1475e9-44` se retrouve partout, avec neuf millisecondes entre l'observation et la réception. L'API rend une mesure plus récente que celle qu'on trace, car le capteur publie toutes les 2 secondes et rend toujours la dernière
+- Résultat attendu : la même mesure à chaque étape, avec unité et date
+- Résultat observé et preuve : le `message_id` `035be0d8e8664437a94696954a1475e9-44` se retrouve partout, reçu neuf millisecondes après l'observation. L'API rend une mesure plus récente, car le capteur publie toutes les 2 secondes
 
 | Étape | Ce qu'on lit |
 |---|---|
@@ -93,8 +90,8 @@ docker compose --profile tools run --rm tools watch \
 - Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt
 - Conditions initiales et paramètres : `sensor-001` en ligne, 6574 mesures en base pour cet objet
 - Action effectuée : `docker compose --profile tools run --rm tools incident sensor-001 invalid`
-- Résultat attendu : le service reste disponible, la donnée invalide ne devient pas une mesure, une trace explique le rejet
-- Résultat observé et preuve : `/health` répond toujours `{"status":"ok","db":true}`, et les 5 mesures ajoutées pendant les 12 secondes d'observation sont les mesures normales du capteur. Le message fautif est conservé dans la zone brute avec `statut: "rejete"`, `motif: "mesure non conforme au contrat"` et son contenu d'origine, `co2.value` valant la chaîne `invalide`, là où en J1 il disparaissait après la trace. La trace du backend nomme le champ fautif.
+- Résultat attendu : rejet tracé, aucune mesure créée
+- Résultat observé et preuve : `/health` répond toujours `{"status":"ok","db":true}`. Les 5 mesures ajoutées en 12 secondes sont les mesures normales du capteur. Le message est gardé en zone brute avec `statut: "rejete"`, `motif: "mesure non conforme au contrat"` et `co2.value` à `invalide`. En J1 il disparaissait. La trace nomme le champ fautif :
 
 ```
 {"topic":"campus/v1/devices/sensor-001/telemetry",
@@ -104,7 +101,7 @@ docker compose --profile tools run --rm tools watch \
 ```
 
 - Conclusion : réussi
-- Correction ou limite identifiée : la validation est passée du consommateur MQTT au job de consolidation, donc le message entre dans la zone brute avant d'être refusé. C'est voulu, pour que rien ne soit perdu à l'ingestion
+- Correction ou limite identifiée : la validation est passée du consommateur MQTT au job de consolidation, pour ne rien perdre à l'ingestion
 
 ## R03, doublon et retard
 
@@ -118,8 +115,8 @@ docker compose --profile tools run --rm tools incident sensor-001 duplicate
 docker compose --profile tools run --rm tools incident sensor-001 delay
 ```
 
-- Résultat attendu : aucun doublon métier dans l'historique, et le dernier état ne recule pas
-- Résultat observé et preuve : le message est arrivé deux fois et une seule ligne existe en base, ce que la zone brute permet de montrer, là où en J1 le doublon disparaissait sans trace. L'état courant a avancé, de 07:52:43 avant l'incident à 07:52:53 après, et la mesure en retard est dans l'historique avec `recorded_at` 07:51:46 et `received_at` 07:52:49, soit 63 secondes d'écart
+- Résultat attendu : pas de doublon, le dernier état ne recule pas
+- Résultat observé et preuve : message reçu deux fois, une seule ligne en base. En J1 le doublon disparaissait sans trace. L'état courant avance de 07:52:43 à 07:52:53. La mesure en retard est dans l'historique avec `recorded_at` 07:51:46 et `received_at` 07:52:49, soit 63 secondes d'écart
 
 ```sh
 docker compose exec mongo mongosh campus_brut --quiet --eval '
@@ -135,7 +132,7 @@ docker compose exec postgres psql -U campus -d campus -tAc \
 ```
 
 - Conclusion : réussi
-- Correction ou limite identifiée : une mesure en retard est acceptée dans l'historique sans limite d'ancienneté. Au-delà de 7 jours elle serait supprimée par la rétention, et son `message_id` ne protégerait plus d'un nouveau doublon
+- Correction ou limite identifiée : pas de limite d'ancienneté pour une mesure en retard. Après 7 jours, la rétention la supprime et son `message_id` ne protège plus d'un doublon
 
 ## R04, capteur silencieux
 
@@ -143,8 +140,8 @@ docker compose exec postgres psql -U campus -d campus -tAc \
 - Version du projet et environnement : J2, macOS arm64, Docker Compose du dépôt
 - Conditions initiales et paramètres : `sensor-001` en ligne et mesurant, seuil de fraîcheur 30 secondes
 - Action effectuée : `docker compose --profile tools run --rm tools incident sensor-001 pause`
-- Résultat attendu : la mesure devient ancienne au-delà du seuil, la disponibilité reste `online`
-- Résultat observé et preuve : la bascule a lieu entre 25 et 40 secondes, ce qui encadre le seuil déclaré de 30. La disponibilité ne change pas, car le capteur répond toujours au broker sans plus mesurer, et l'application affiche « Donnée ancienne » à côté de la valeur sans parler du réseau du téléphone
+- Résultat attendu : mesure ancienne après le seuil, toujours `online`
+- Résultat observé et preuve : bascule entre 25 et 40 secondes, autour du seuil de 30. Toujours `online`, car le capteur répond au broker sans mesurer. L'application affiche « Donnée ancienne » sans parler du réseau du téléphone
 
 | Temps écoulé | `is_stale` | `availability` |
 |---|---|---|
@@ -158,24 +155,24 @@ docker compose exec postgres psql -U campus -d campus -tAc \
 ## R05, téléphone hors ligne
 
 - Scénario et responsable : R05, Jérémy Perret et Kylian Patry
-- Version du projet et environnement : J2, iPhone sous Expo Go, backend et kit sur le Mac, les deux sur le même réseau
-- Conditions initiales et paramètres : consultation réussie préalable sur le détail de `sensor-001`, cache de 24 heures, seuil de fraîcheur 30 secondes
-- Action effectuée : activation du mode Avion sur le téléphone après une consultation réussie
-- Résultat attendu : le cache reste consultable, les dates sont visibles, l'état est explicite
-- Résultat observé et preuve : `docs/preuves/J2-hors-ligne.png`, prise à 10:40 avec le mode Avion visible dans la barre d'état. La température, le CO2 et les dix tranches d'historique restent affichés sous un bandeau « Téléphone hors ligne. Données conservées, elles ne décrivent plus la salle en direct. », qui nomme le téléphone et non le capteur ni le serveur. La réponse est datée, « Reçues le 16/09 10:39, il y a 37 s. », et l'ancienneté de la mesure est donnée à part, « Dernière mesure : il y a 44 s », ces durées avançant seules. L'écran affiche « Fraîcheur inconnue, données du cache » et cesse d'affirmer « Donnée récente », qui serait faux. La même séquence a d'abord été exercée en coupant le serveur au lieu du téléphone, avec le bandeau « Serveur injoignable » et un cache qui survit à un rechargement complet de l'application
-- Conclusion : partiel. Le cache est servi, mais le blocage d'une commande hors ligne fait partie de l'attendu de R05 et attend les commandes, prévues en J4
-- Correction ou limite identifiée : deux défauts ont été trouvés et corrigés pendant ce scénario. Le cache était effacé dès qu'un appel échouait, parce que seule une requête en succès est écrite sur le disque par défaut. L'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Non couvert : fermer complètement l'application puis la rouvrir sans réseau, car Expo Go recharge le code depuis le serveur de développement au lancement. La persistance a été vérifiée autrement, par un rechargement complet serveur éteint
+- Version du projet et environnement : J2, iPhone sous Expo Go, backend et kit sur le Mac, sur le même réseau
+- Conditions initiales et paramètres : consultation réussie du détail de `sensor-001`, cache de 24 heures, seuil de fraîcheur 30 secondes
+- Action effectuée : mode Avion sur le téléphone
+- Résultat attendu : cache consultable et daté, état explicite
+- Résultat observé et preuve : `docs/preuves/J2-hors-ligne.png`, prise à 10:40, mode Avion visible. Les valeurs et les dix tranches d'historique restent sous le bandeau « Téléphone hors ligne. Données conservées, elles ne décrivent plus la salle en direct. ». Dates affichées : « Reçues le 16/09 10:39, il y a 37 s. » et « Dernière mesure : il y a 44 s ». « Donnée récente » devient « Fraîcheur inconnue, données du cache ». Testé avant en coupant le serveur : bandeau « Serveur injoignable », cache gardé après un rechargement complet
+- Conclusion : partiel. Le blocage d'une commande hors ligne attend les commandes, prévues en J4
+- Correction ou limite identifiée : deux défauts corrigés. Le cache était effacé au premier appel en échec, car seule une requête réussie est écrite sur le disque. L'ancienneté affichée se figeait, faute d'horloge qui redessine l'écran. Non couvert : rouvrir sans réseau l'application fermée, car Expo Go recharge le code depuis le serveur de développement
 
 ## R06, reconnexion et cycle de vie
 
 - Scénario et responsable : R06, Jérémy Perret
 - Version du projet et environnement : J2, application servie par Expo sur le navigateur
-- Conditions initiales et paramètres : application affichant le cache avec le bandeau « serveur injoignable »
+- Conditions initiales et paramètres : cache affiché avec le bandeau « serveur injoignable »
 - Action effectuée : remise en marche du serveur, sans toucher à l'application
-- Résultat attendu : retour à des données cohérentes, pas de chargement infini, pas de doublon
-- Résultat observé et preuve : le bandeau disparaît et les valeurs repassent en direct, sans écran de chargement infini, car l'état hors ligne sans cache affiche un message et un bouton Réessayer
-- Conclusion : partiel, la reprise a été observée en coupant le serveur, pas le réseau du téléphone
-- Correction ou limite identifiée : le passage en arrière-plan et le retour au premier plan passent par `AppState`, qui n'existe pas dans un navigateur, donc ils restent à exercer sur l'iPhone. Un défaut a été trouvé pendant ce scénario : hors ligne sans rien en cache, l'écran affichait un chargement qui ne se terminait jamais, parce qu'une requête mise en pause ne se termine pas. Corrigé par un état hors ligne distinct
+- Résultat attendu : données cohérentes, pas de chargement infini
+- Résultat observé et preuve : le bandeau disparaît et les valeurs repassent en direct
+- Conclusion : partiel, testé en coupant le serveur, pas le réseau du téléphone
+- Correction ou limite identifiée : l'arrière-plan passe par `AppState`, absent du navigateur, donc reste à tester sur l'iPhone. Défaut corrigé : hors ligne sans cache, l'écran chargeait sans fin, car une requête en pause ne se termine pas. Il affiche maintenant un message et un bouton Réessayer
 
 ## R07, broker interrompu
 
@@ -189,10 +186,10 @@ docker compose stop mosquitto
 docker compose up -d --wait mosquitto
 ```
 
-- Résultat attendu : le backend reste diagnosticable et se reconnecte, le mobile ne présente pas les anciennes mesures comme fraîches
-- Résultat observé et preuve : pendant la coupure, `/health` répond `{"status":"ok","db":true}` et `/rooms` répond 200, avec « reconnexion au broker » toutes les 2 secondes dans les traces. Après la remise en marche, l'ingestion reprend avec 15 mesures dans les 10 secondes suivantes, soit le rythme nominal des trois capteurs
+- Résultat attendu : backend diagnosticable et reconnecté
+- Résultat observé et preuve : pendant la coupure, `/health` répond `{"status":"ok","db":true}`, `/rooms` répond 200, et les traces montrent « reconnexion au broker » toutes les 2 secondes. Ensuite, 15 mesures en 10 secondes, le rythme normal des trois capteurs
 - Conclusion : réussi
-- Correction ou limite identifiée : le simulateur suspend ses mesures pendant la coupure du broker, donc rien n'est perdu. Ce comportement vient du kit et non d'une garantie de notre backend, il ne faut pas l'annoncer comme une reprise de messages manqués. De notre côté, la protection est la session persistante `clean: false`, qui n'a pas été mise à l'épreuve ici puisqu'il n'y avait rien à rejouer
+- Correction ou limite identifiée : rien n'est perdu car le simulateur suspend ses mesures pendant la coupure. Ça vient du kit, pas de notre backend. Notre protection, la session persistante `clean: false`, n'a pas été mise à l'épreuve
 
 ## R08, commande exécutée
 
@@ -208,10 +205,10 @@ curl http://127.0.0.1:3000/commands/j4-preuve1-on
 docker compose logs backend | grep '"j4-preuve1-on"'
 ```
 
-- Résultat attendu : suivi de l'attente puis d'un retour confirmé, le CO2 baisse, un accusé de transport seul ne vaut pas preuve
-- Résultat observé et preuve : le POST répond 202 `pending`, avec `published_at` 5 ms après la demande. Ce `published_at` est l'accusé du broker, la commande reste `pending` à ce stade. `GET /commands/j4-preuve1-on` donne ensuite `executed`, résultat reçu 47 ms après la demande, `late` faux. Dans `GET /rooms`, `ventilation` passe de faux à vrai et le CO2 de 759 à 651, 515 puis 422 ppm. Les traces donnent le parcours : `commande_acceptee` 12:05:31.620, `commande_publiee` .623, `message_recu` .666, `commande_resultat` 12:05:32.775
-- Conclusion : partiel. La chaîne est prouvée depuis l'API, pas encore depuis l'iPhone
-- Correction ou limite identifiée : le statut `executed` est visible au passage suivant du job, donc 0 à 5 secondes après la réception du résultat
+- Résultat attendu : attente puis confirmation, le CO2 baisse
+- Résultat observé et preuve : le POST répond 202 `pending`. Le `published_at`, 5 ms après, n'est que l'accusé du broker. `GET /commands/j4-preuve1-on` passe ensuite à `executed`, résultat reçu 47 ms après la demande, `late` faux. Dans `GET /rooms`, `ventilation` passe à vrai et le CO2 de 759 à 651, 515 puis 422 ppm. Traces : `commande_acceptee` 12:05:31.620, `commande_publiee` .623, `message_recu` .666, `commande_resultat` 12:05:32.775
+- Conclusion : partiel, prouvé depuis l'API mais pas depuis l'iPhone
+- Correction ou limite identifiée : `executed` apparaît au passage suivant du job, 0 à 5 secondes après le résultat
 
 ## R09, commande sans réponse
 
@@ -227,46 +224,43 @@ curl -X POST http://127.0.0.1:3000/devices/sensor-001/commands \
 docker compose --profile tools run --rm tools incident sensor-001 respond
 ```
 
-- Résultat attendu : un délai borné conduit à un échec ou à un résultat inconnu, le mobile n'affiche jamais « activé » sans confirmation, le comportement d'une réponse tardive est documenté
-- Résultat observé et preuve : `pending` à 5, 10 et 15 secondes, `unknown` à 20 secondes. Traces : `commande_acceptee` 12:06:04.775, `commande_publiee` .777, `commande_sans_reponse` avec `reason` `delai_depasse` à 12:06:24.701. Un résultat publié ensuite à la main sur le topic `results` passe la commande en `executed` avec `late` à vrai. Le même résultat rejoué donne `commande_doublon` et ne change rien. Un `command_id` inconnu donne `resultat_rejete` avec `reason` `commande_inconnue`
-- Conclusion : partiel. Le comportement du backend est prouvé. Côté mobile, le libellé « Sans réponse, résultat inconnu » est testé en unitaire, pas encore vu sur l'iPhone. L'écran n'affiche que l'état réel lu dans `GET /rooms`, jamais l'intention
-- Correction ou limite identifiée : on choisit `unknown` et pas `failed`, car sans réponse on ne sait pas si l'objet a agi. La bascule a lieu entre 15 et 20 secondes, au rythme du job. Détail dans `docs/decisions/J4/16-commande-sans-reponse-et-delai.md`
+- Résultat attendu : délai borné, jamais « activé » sans confirmation
+- Résultat observé et preuve : `pending` à 5, 10 et 15 secondes, `unknown` à 20. Traces : `commande_acceptee` 12:06:04.775, `commande_publiee` .777, `commande_sans_reponse` avec `reason` `delai_depasse` à 12:06:24.701. Un résultat publié ensuite à la main sur `results` passe la commande en `executed` avec `late` à vrai. Rejoué, il donne `commande_doublon` sans effet. Un `command_id` inconnu donne `resultat_rejete`, `reason` `commande_inconnue`
+- Conclusion : partiel. Backend prouvé. Le libellé « Sans réponse, résultat inconnu » est testé en unitaire, pas vu sur l'iPhone. L'écran n'affiche que l'état lu dans `GET /rooms`
+- Correction ou limite identifiée : `unknown` et pas `failed`, car sans réponse on ne sait pas si l'objet a agi. Bascule entre 15 et 20 secondes, au rythme du job. Voir `docs/decisions/J4/16-commande-sans-reponse-et-delai.md`
 
 ## R12, alerte et retour à la normale
 
 - Scénario et responsable : R12, Jérémy Perret
 - Version du projet et environnement : J5, Windows 11 avec Docker Desktop, Docker Compose du dépôt, kit non modifié
-- Conditions initiales et paramètres : trois capteurs en ligne, publication toutes les 2 secondes, seuils de 1000 ppm pour l'activation et 800 ppm pour le retour, `sensor-001` ramené sous 800 ppm avant de commencer
-- Action effectuée :
+- Conditions initiales et paramètres : trois capteurs en ligne, publication toutes les 2 secondes, seuils de 1000 ppm à l'activation et 800 ppm au retour, `sensor-001` sous 800 ppm au départ
+- Action effectuée : le script joue `incident sensor-001 high-co2`, attend 42 secondes, puis `incident sensor-001 normal-co2`
 
 ```sh
 ./docs/preuves/outils/alerte.sh sensor-001
 ```
 
-Le script joue `incident sensor-001 high-co2`, attend 42 secondes, puis joue
-`incident sensor-001 normal-co2`.
-
-- Résultat attendu : alerte identifiable, pas de création répétée à chaque mesure, retour à la normale selon la règle documentée
-- Résultat observé et preuve : l'alerte 4 s'ouvre sur la première mesure après l'incident, 1813 ppm à 08:29:58. 12 secondes plus tard elle compte 5 mesures, 30 secondes après 20, toujours la même ligne. Après `normal-co2`, elle passe en `resolved` sur la mesure à 610 ppm, à 08:30:42. Une seule alerte créée pendant le scénario. Les traces relient l'alerte à la mesure qui l'a ouverte
+- Résultat attendu : une alerte, pas une par mesure, puis retour à la normale
+- Résultat observé et preuve : l'alerte 4 s'ouvre sur la première mesure, 1813 ppm à 08:29:58. Elle compte 5 mesures 12 secondes plus tard, 20 après 30 secondes, toujours sur la même ligne. Après `normal-co2`, elle passe en `resolved` à 610 ppm, à 08:30:42. Une seule alerte créée. Les traces la relient à sa mesure
 
 ```
 08:30:01.767  alerte_ouverte  alerte 4  1813 ppm  mesure 56f734cf-b8ed-43aa-b343-a75eccbbe5f4
 08:30:47.538  alerte_fermee   alerte 4   610 ppm  mesure 7bb1b143-2188-4e31-a3c0-1ee77c3c8b3d
 ```
 
-Le même cycle a été joué sans incident, depuis la version web de l'application : alerte 7
-ouverte à 1007 ppm, pic à 2500 ppm, ventilation activée depuis l'écran du capteur, commande
-`executed` en 55 ms, alerte revenue à la normale à 789 ppm. 308 mesures et une seule ligne.
-Captures `docs/preuves/J5-alerte-en-cours.png` et `docs/preuves/J5-retour-a-la-normale.png`.
+Même cycle sans incident, depuis la version web de l'application : alerte 7 ouverte à 1007 ppm,
+pic à 2500 ppm, ventilation activée depuis l'écran du capteur, commande `executed` en 55 ms,
+retour à la normale à 789 ppm. 308 mesures, une seule ligne. Captures
+`docs/preuves/J5-alerte-en-cours.png` et `docs/preuves/J5-retour-a-la-normale.png`.
 
 - Conclusion : réussi
-- Correction ou limite identifiée : l'alerte devient visible au passage suivant du job, 0 à 5 secondes après la mesure, puis au rafraîchissement du mobile, jusqu'à 15 secondes. Les heures des traces sont celles du job, 3 à 5 secondes après celles du capteur
+- Correction ou limite identifiée : l'alerte apparaît au passage suivant du job, 0 à 5 secondes après la mesure, puis sur le mobile au rafraîchissement, jusqu'à 15 secondes. Les heures des traces sont celles du job, 3 à 5 secondes après le capteur
 
 ## R13, reproductibilité et terminal
 
 - Scénario et responsable : R13, Jérémy Perret
 - Version du projet et environnement : J5, Windows 11 avec Docker Desktop, Node 24, Git Bash
-- Conditions initiales et paramètres : copie des fichiers suivis du dépôt dans un dossier neuf, sans `.env` ni `node_modules`. La pile de travail est arrêtée pour libérer les ports, et la copie tourne sous le nom de projet `campus-r13`, donc avec des volumes vides. Images Docker déjà en cache sur la machine
+- Conditions initiales et paramètres : fichiers suivis du dépôt copiés dans un dossier neuf, sans `.env` ni `node_modules`. Pile de travail arrêtée pour libérer les ports. Projet nommé `campus-r13`, donc volumes vides. Images Docker déjà en cache
 - Action effectuée : les commandes du README, dans l'ordre
 
 ```sh
@@ -279,10 +273,10 @@ cd mobile && npm ci && npm test && npm run typecheck
 docker compose stop && docker compose start
 ```
 
-- Résultat attendu : configuration compréhensible, état persistant conforme à la documentation, parcours principal démontrable, adresse du backend adaptée au terminal
-- Résultat observé et preuve : `up` en 14 secondes, `/health` à `ok` sur les quatre composants 10 secondes plus tard, Grafana répond. `/rooms` rend les trois salles, l'historique a sa première tranche, aucune alerte au départ. 63 tests backend et 54 tests mobile passent, typecheck compris, avec Expo 57.0.22 installé par `npm ci`. Les trois alertes s'ouvrent seules 58 secondes après le démarrage, à 1004, 1009 et 1012 ppm, comme l'annonce le README. Après `stop` puis `start`, les 63 mesures sont toujours en base
+- Résultat attendu : le projet démarre et garde ses données avec le seul README
+- Résultat observé et preuve : `up` en 14 secondes, `/health` à `ok` sur les quatre composants 10 secondes après, Grafana répond. `/rooms` rend les trois salles, sans alerte. 63 tests backend et 54 tests mobile passent, typecheck compris, avec Expo 57.0.22 installé par `npm ci`. Les trois alertes s'ouvrent seules 58 secondes après le démarrage, à 1004, 1009 et 1012 ppm, comme prévu par le README. Après `stop` puis `start`, les 63 mesures sont toujours en base
 - Conclusion : partiel
-- Correction ou limite identifiée : le README ne disait rien de Windows, ni de `npm ci` avant les tests, ni du pare-feu qui bloque le téléphone. Ajoutés. Non rejoué ici : `npx expo start` et l'iPhone, donc l'adresse du backend déduite par le téléphone. Le premier `docker compose up --build` sur une machine neuve télécharge les images et prend plusieurs minutes
+- Correction ou limite identifiée : ajouté au README : Windows, `npm ci` avant les tests, le pare-feu qui bloque le téléphone. Pas rejoué : `npx expo start` et l'iPhone, donc l'adresse du backend vue par le téléphone. Sur une machine neuve, le premier `docker compose up --build` télécharge les images, ce qui prend plusieurs minutes
 
 ## Fiche vierge
 

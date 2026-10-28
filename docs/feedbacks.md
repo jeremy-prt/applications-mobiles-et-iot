@@ -1,19 +1,17 @@
 # Réponses aux feedbacks
 
-Réponses point par point à l'issue du 17 septembre 2026. Chaque sujet se termine par la
-décision prise et la commande qui la prouve.
+Réponses à l'issue du 17 septembre 2026, avec décision et commande de preuve.
 
 ## 1. Auto-enregistrement des devices
 
 | Question | Réponse |
 |---|---|
-| Si je publie une télémétrie valide avec `device_id=sensor-999` et `room_id=666`, qu'est-ce qui se passe ? | Avant correction, l'objet et la salle étaient créés, la mesure entrait en base, et `GET /rooms` servait au téléphone une salle nommée `666` avec `is_stale` à faux. Sa trace était identique à celle d'un vrai capteur. Depuis, le message est refusé avec `reason="objet_non_autorise"`, et rien n'est créé |
-| Est-ce qu'identifier un device suffit à l'autoriser ? | C'était exactement le défaut. Le `device_id` répondait à trois questions à la fois : qui est cet objet, existe-t-il, et a-t-il le droit d'écrire. Aujourd'hui l'identité reste portée par le `device_id`, l'existence par une ligne dans `devices`, et l'autorisation par la colonne `autorise` |
-| Comment introduiriez-vous un registre des devices autorisés ? | La table `devices` devient le registre, avec un drapeau `autorise` posé à l'enrôlement et jamais par un message entrant. Les trois capteurs du kit y sont insérés par migration. Un déploiement réel les enrôlerait à la pose, ce que J4 fera avec le QR code prévu par `POST /associations` |
-| À quel endroit de l'architecture cette vérification devrait-elle être faite ? | Dans le job de consolidation, avec le reste de la validation. Pas dans le consommateur MQTT, sinon le message serait jeté avant d'être conservé et on ne pourrait pas expliquer le refus. Pas dans l'ACL du broker non plus : elle protège un compte, or le kit n'en donne qu'un seul pour tous les objets |
+| Si je publie une télémétrie valide avec `device_id=sensor-999` et `room_id=666`, qu'est-ce qui se passe ? | Avant, la salle `666` était créée et affichée au téléphone avec `is_stale` à faux. Maintenant le message est refusé avec `reason="objet_non_autorise"` |
+| Est-ce qu'identifier un device suffit à l'autoriser ? | Non, c'était le défaut. Maintenant l'autorisation est une colonne `autorise` dans `devices` |
+| Comment introduiriez-vous un registre des devices autorisés ? | La table `devices`, avec un drapeau `autorise` posé à l'enrôlement, jamais par un message. Les trois capteurs du kit sont insérés par migration |
+| À quel endroit de l'architecture cette vérification devrait-elle être faite ? | Dans le job de consolidation, qui garde le message et trace le refus. L'ACL du broker ne peut pas, car le kit n'a qu'un compte pour tous les objets |
 
-Décision : corrigé. Le comportement était indéfendable sur un dépôt public, puisqu'un message
-suffisait à créer une salle affichée au téléphone. Détail dans
+Décision : corrigé, car un message suffisait à créer une salle. Détail dans
 `docs/decisions/J3/13-registre-des-objets-autorises.md`.
 
 ```sh
@@ -24,45 +22,41 @@ docker run --rm --network applications-mobiles-et-iot_default eclipse-mosquitto:
 docker compose exec -T postgres psql -U campus -d campus -c "select count(*) from rooms"
 ```
 
-Avant : 4 salles. Après : 3 salles, et une ligne `eventType="mesure_rejetee"` portant
-`reason="objet_non_autorise"` et la salle revendiquée.
+Avant : 4 salles. Après : 3, et une ligne `eventType="mesure_rejetee"` avec
+`reason="objet_non_autorise"`.
 
 ## 2. Rôle des deux bases de données
 
 | Question | Réponse |
 |---|---|
-| Pourquoi stocker les messages bruts dans MongoDB plutôt que directement dans les tables métier PostgreSQL ? | Une table refuse ce qui ne rentre pas dans ses colonnes, or la zone brute doit justement accepter ce qu'on refusera ensuite : un JSON illisible, un champ manquant, une valeur impossible. C'est ce qui permet d'expliquer après coup ce qu'un capteur avait envoyé et de rejouer le calcul après correction |
-| Quelles caractéristiques du message brut rendent un stockage documentaire intéressant ? | Trois topics de formes différentes tiennent dans une seule collection, le corps est imbriqué et porte des champs optionnels, un message peut n'être pas du JSON du tout, et le contrat est amené à changer côté objet sans que nous décidions quand |
-| Pourquoi les mesures consolidées, l'état courant et les agrégats sont-ils mieux adaptés à PostgreSQL et TimescaleDB ? | Parce qu'on y a besoin de garanties qu'une base documentaire ne donne pas : une mesure appartient à un objet qui existe, un doublon est impossible, une salle ne disparaît pas sous ses capteurs. TimescaleDB ajoute la rétention automatique et le découpage par période sur des séries datées |
-| Quelles contraintes utilisez-vous dans PostgreSQL que vous n'utilisez pas dans la zone brute ? | Les clés étrangères entre mesure, objet et salle, l'unicité sur `(device_id, message_id, recorded_at)`, les colonnes obligatoires, et la mise à jour conditionnelle qui empêche l'état courant de reculer. La zone brute n'a aucun validateur de schéma, aucune clé étrangère et aucune unicité : son seul mécanisme structurel est l'index de rétention à 7 jours |
-| Que gagneriez-vous et que perdriez-vous si les rôles étaient inversés ? | On gagnerait de ne plus écrire de migration quand le contrat change, et la liberté de garder l'historique sous des formes différentes. On perdrait ce qui fait tenir le système : la déduplication deviendrait un test applicatif, donc une course entre deux traitements simultanés, les droits devraient être recopiés dans chaque mesure au risque de diverger, et on perdrait la rétention automatique et le découpage temporel. Et une zone brute sous PostgreSQL refuserait les messages abîmés, c'est à dire précisément ceux qu'on veut garder |
-| Que se passe-t-il si MongoDB accepte un message mais que sa consolidation vers PostgreSQL échoue ? | Il n'y a pas de transaction entre les deux bases. L'écriture PostgreSQL se fait avant le marquage dans MongoDB : si le marquage échoue, le message repart en attente et sera rejoué, et l'unicité absorbe le doublon. Si PostgreSQL est indisponible, rien n'est marqué et tout s'accumule dans la zone brute jusqu'au rétablissement. La limite connue est qu'un message qui fait systématiquement lever une exception bloque la tête de file, puisque le traitement suit l'ordre d'arrivée |
-| Comment le système sait-il qu'un message brut reste à retraiter ? | Par son `statut`. Il vaut `en_attente` à l'écriture et ne change qu'une fois le traitement fini. Le job ne sélectionne que ce statut, dans l'ordre d'arrivée. Un message dont l'objet n'existe pas encore est différé, avec un compteur d'essais, et abandonné au bout de 60 passages |
-| Pourquoi conserver le message brut après sa consolidation ? | Parce que la consolidation peut être fausse. Garder l'original permet de corriger la règle et de recalculer. C'est ce qui a servi en J2 : six testaments du broker rejetés depuis J1 ont été retrouvés et rejoués après correction du schéma |
-| Dans quel scénario le rejeu devient-il utile ? | Quand notre code était en tort : une règle trop stricte, un champ mal lu, un calcul faux. Pas quand c'est le capteur qui a envoyé n'importe quoi, auquel cas rejouer redonnerait le même rejet |
-| Si un nouveau firmware ajoute des champs que le backend ne connaît pas, que se passe-t-il dans MongoDB, et à la consolidation ? | Dans MongoDB, le message est stocké entier, champs inconnus compris, car aucun validateur n'est déclaré. À la consolidation, nos schémas sont des `z.object()` sans `strict`, donc Zod ignore les champs inconnus et les retire : la mesure est acceptée et le champ disparaît sans trace, définitivement perdu après 7 jours de rétention. En revanche si le firmware passe à `schema_version: 2`, tous ses messages sont rejetés en bloc, et restent rejouables une fois le schéma mis à jour |
+| Pourquoi stocker les messages bruts dans MongoDB plutôt que directement dans les tables métier PostgreSQL ? | Une table refuse ce qui ne rentre pas dans ses colonnes. Or on veut garder les messages rejetés pour expliquer le rejet et rejouer |
+| Quelles caractéristiques du message brut rendent un stockage documentaire intéressant ? | Trois topics de formes différentes, des champs imbriqués ou optionnels, parfois pas du JSON, et un contrat qui change sans nous |
+| Pourquoi les mesures consolidées, l'état courant et les agrégats sont-ils mieux adaptés à PostgreSQL et TimescaleDB ? | Il faut des garanties : objet existant, pas de doublon, salle qui ne disparaît pas. TimescaleDB ajoute la rétention et le découpage par période |
+| Quelles contraintes utilisez-vous dans PostgreSQL que vous n'utilisez pas dans la zone brute ? | Clés étrangères, unicité sur `(device_id, message_id, recorded_at)`, colonnes obligatoires, mise à jour conditionnelle de l'état courant. La zone brute n'a que l'index de rétention à 7 jours |
+| Que gagneriez-vous et que perdriez-vous si les rôles étaient inversés ? | On gagnerait la liberté de schéma. On perdrait la déduplication par contrainte, la rétention et le découpage temporel. Et la zone brute refuserait les messages abîmés qu'on veut garder |
+| Que se passe-t-il si MongoDB accepte un message mais que sa consolidation vers PostgreSQL échoue ? | Pas de transaction. On écrit dans PostgreSQL puis on marque le message dans MongoDB. Si le marquage échoue, le message est rejoué et l'unicité absorbe le doublon. Si PostgreSQL est coupé, tout attend. Limite : un message qui plante toujours bloque la file |
+| Comment le système sait-il qu'un message brut reste à retraiter ? | Par son `statut` `en_attente`, le seul que le job traite. Si l'objet est inconnu, le message est différé, puis abandonné après 60 passages |
+| Pourquoi conserver le message brut après sa consolidation ? | La consolidation peut être fausse. En J2, six testaments rejetés depuis J1 ont été rejoués après correction du schéma |
+| Dans quel scénario le rejeu devient-il utile ? | Quand notre code est en tort, pas quand le capteur envoie n'importe quoi |
+| Si un nouveau firmware ajoute des champs que le backend ne connaît pas, que se passe-t-il dans MongoDB, et à la consolidation ? | MongoDB garde tout, sans validateur. Zod (`z.object()` sans `strict`) retire les champs inconnus : la mesure passe, le champ est perdu après les 7 jours de rétention. Avec `schema_version: 2`, tout est rejeté mais rejouable |
 
-Décision : documenté, sans changement de code. Le comportement face à un champ inconnu est
-acceptable pour ce projet, mais il n'était écrit nulle part et personne dans l'équipe ne
-l'avait vérifié. Il l'est maintenant, avec sa conséquence : un champ ajouté par un firmware
-est perdu en silence, et seule une montée de `schema_version` se voit.
+Décision : documenté, sans changement de code. Acceptable ici, mais un champ ajouté par un
+firmware est perdu en silence.
 
 ## 3. Déduplication
 
 | Question | Réponse |
 |---|---|
-| Si je republie le même `message_id` avec un `observed_at` différent, est-ce un doublon chez vous ? | Non. Deux lignes sont créées, aucun `doublon_ecarte` n'est tracé, et si la seconde date est plus récente elle devient l'état courant affiché |
-| Pour vous, qu'est-ce qui définit l'identité d'un événement ? | Une observation faite par un objet donné à un instant donné. Ce n'est pas l'identifiant du message, qui n'est que la façon dont le producteur la nomme |
-| Le `message_id` suffit-il ? | Non, pour deux raisons. Il n'est unique que par objet, donc il lui faut le `device_id`. Et le contrat du kit le renouvelle à chaque redémarrage du capteur, donc rien ne garantit son unicité dans le temps |
-| Pourquoi votre contrainte d'unicité contient-elle plusieurs champs ? | `device_id` parce que le `message_id` est propre à un objet, et `recorded_at` parce que TimescaleDB impose la colonne de temps dans tout index unique d'une table découpée par période. Le troisième champ est donc d'abord une contrainte technique |
-| Votre contrainte traduit-elle réellement votre définition métier d'un doublon ? | Oui, mais par chance plus que par choix, et nous ne l'avions pas vu avant cette question. Elle code « même objet, même identifiant, même instant », alors que notre définition est « même observation ». Les deux coïncident tant que le producteur n'émet jamais deux dates pour un même identifiant. Le kit respecte cette hypothèse, elle n'était écrite nulle part et aucun test ne la vérifiait |
-| Que se passe-t-il si un producteur réutilise accidentellement un ancien `message_id` ? | Deux cas. Si la date d'observation diffère, la mesure entre normalement : rien n'est perdu, mais l'idée qu'un identifiant désigne un événement devient fausse sans qu'on le sache. Si la date est identique, la vraie mesure est jetée et tracée comme un doublon, indiscernable d'un vrai. Nous l'avons reproduit : une mesure à 2000 ppm a disparu de cette façon |
+| Si je republie le même `message_id` avec un `observed_at` différent, est-ce un doublon chez vous ? | Non. Deux lignes sont créées, et la plus récente devient l'état courant |
+| Pour vous, qu'est-ce qui définit l'identité d'un événement ? | Une observation d'un objet à un instant, pas un `message_id` |
+| Le `message_id` suffit-il ? | Non. Il est unique par objet seulement, et le kit le renouvelle à chaque redémarrage |
+| Pourquoi votre contrainte d'unicité contient-elle plusieurs champs ? | `device_id` car le `message_id` est propre à un objet, `recorded_at` car TimescaleDB l'impose dans tout index unique |
+| Votre contrainte traduit-elle réellement votre définition métier d'un doublon ? | Par chance seulement. Elle code « même objet, même identifiant, même instant », pas « même observation ». Ça tient tant que le producteur ne donne pas deux dates au même identifiant, ce que rien ne testait |
+| Que se passe-t-il si un producteur réutilise accidentellement un ancien `message_id` ? | Date différente : la mesure entre. Date identique : la vraie mesure est jetée comme doublon, sans qu'on le voie. Reproduit avec une mesure à 2000 ppm |
 
-Décision : accepté et documenté, sans changement de la contrainte. Elle est correcte pour le
-contrat du kit, et la resserrer sur le contenu de la mesure coûterait un calcul d'empreinte à
-chaque message pour un cas que le producteur actuel ne produit pas. Le risque est désormais
-écrit, ce qui est le point important : une mesure perdue de cette façon est aujourd'hui
-invisible. Détail dans `docs/decisions/J3/14-definition-d-un-doublon.md`.
+Décision : contrainte inchangée, risque documenté. Elle convient au kit, et comparer le contenu
+coûterait une empreinte par message. Détail dans
+`docs/decisions/J3/14-definition-d-un-doublon.md`.
 
 ```sh
 ./docs/preuves/outils/loki.sh '{service_name="backend"} | json | eventType="doublon_ecarte"' 20 1h
@@ -72,26 +66,23 @@ invisible. Détail dans `docs/decisions/J3/14-definition-d-un-doublon.md`.
 
 | Question | Réponse |
 |---|---|
-| Vous perdez environ 80 % des messages sur une coupure de 30 secondes. Pourquoi est-ce acceptable ? | Cette question nous a fait trouver un bug dans notre code, donc la prémisse a changé. Après correction, la perte est de 35 % et non de 80. Ce qui reste est acceptable parce que l'usage visé est la supervision d'une salle en temps quasi réel : l'état courant est rétabli en quelques secondes, les tranches d'agrégat de 5 minutes restent représentatives, et aucune décision ne se prend sur une mesure isolée. Ce ne le serait pas pour de la facturation ou un journal réglementaire |
-| Quelle garantie pensiez-vous obtenir avec QoS 1 ? | Zéro perte. C'était écrit dans notre hypothèse de J3 et dans `docs/J2.md` : session persistante plus QoS 1 égale rien de perdu |
-| Quelle garantie avez-vous réellement observée ? | Que le broker retient bien, et que c'était notre code qui jetait. Un abonné témoin resté connecté pendant la coupure a vu passer les 46 messages sans aucun trou : le broker avait tout. Notre backend posait son écouteur de messages après l'abonnement, donc après un aller-retour réseau, alors que le broker envoie sa file dès la connexion acceptée. Tout ce qui arrivait pendant cet intervalle tombait sans que personne n'écoute |
-| Comment l'utilisateur sait-il aujourd'hui que l'historique contient un trou ? | Il ne le sait pas. Aucun écran ne le signale, et l'API n'expose rien qui le dise |
-| Le système est-il capable de détecter qu'il manque des événements ? | Non. Rien dans le code ne suit les numéros de séquence. Nous l'avons fait à la main, avec un script, après coup. Le système sait seulement qu'une coupure a eu lieu, par les événements `broker_perdu` et `broker_connecte` qui la datent sans la chiffrer |
-| Si cette perte devenait inacceptable, quelles solutions pourriez-vous envisager ? | Dans l'ordre de coût croissant : surveiller les numéros de séquence pour au moins détecter et signaler le trou, ce qui ne le comble pas mais le rend visible ; régler la file du broker avec `max_queued_messages` et une expiration de session, ce qui suppose de modifier le kit ; passer en MQTT 5 avec une expiration de session explicite ; faire tamponner les mesures par l'objet et les rejouer à la reconnexion, ce que le contrat du kit ne prévoit pas |
-| La correction devrait-elle se situer côté broker, backend ou device ? | Les trois répondent à des choses différentes. Le device est le seul endroit qui peut vraiment garantir qu'aucune mesure n'est perdue, puisqu'il est le seul présent pendant toute la coupure. Le broker décide combien de temps et combien de messages il garde. Le backend ne peut rien pendant son absence, mais il est le seul à pouvoir constater le trou au retour, et c'est la correction la moins chère |
+| Vous perdez environ 80 % des messages sur une coupure de 30 secondes. Pourquoi est-ce acceptable ? | La question nous a fait trouver un bug : après correction, la perte est de 35 %. C'est acceptable pour superviser une salle, car l'état courant revient en quelques secondes. Pas pour de la facturation |
+| Quelle garantie pensiez-vous obtenir avec QoS 1 ? | Zéro perte, avec session persistante et QoS 1 (hypothèse de J3 et `docs/J2.md`) |
+| Quelle garantie avez-vous réellement observée ? | Le broker gardait tout : un abonné témoin a reçu les 46 messages. Notre backend posait son écouteur après l'abonnement, donc ratait la file envoyée dès la connexion |
+| Comment l'utilisateur sait-il aujourd'hui que l'historique contient un trou ? | Il ne le sait pas, rien ne le signale |
+| Le système est-il capable de détecter qu'il manque des événements ? | Non. On a compté les trous à la main avec un script. `broker_perdu` et `broker_connecte` datent la coupure sans la chiffrer |
+| Si cette perte devenait inacceptable, quelles solutions pourriez-vous envisager ? | Du moins cher au plus cher : suivre les numéros de séquence pour signaler le trou ; régler `max_queued_messages` et l'expiration de session, donc modifier le kit ; MQTT 5 ; tampon dans l'objet, hors contrat du kit |
+| La correction devrait-elle se situer côté broker, backend ou device ? | Seul le device peut garantir zéro perte. Le broker fixe ce qu'il garde. Le backend peut détecter le trou au retour, c'est le moins cher |
 
-Décision : corrigé pour la partie qui nous incombait, le reste documenté. Le bug de l'écouteur
-posé trop tard est corrigé et mesuré. La perte résiduelle, concentrée sur les douze premières
-secondes de la coupure, reste inexpliquée : nous avons vérifié que le broker avait bien reçu
-ces messages, et une tentative de correction sur l'ordre d'arrêt n'a rien changé. Nous
-préférons l'écrire que de proposer une explication non vérifiée, ce que nous avions fait dans
-la première version de l'ADR 12.
+Décision : bug de l'écouteur corrigé et mesuré. La perte des douze premières secondes reste
+inexpliquée : le broker avait les messages, et changer l'ordre d'arrêt n'a rien donné. On
+l'écrit plutôt que d'inventer une cause, ce qu'on avait fait dans la première version de l'ADR 12.
 
 ```sh
 ./docs/preuves/outils/mesure-coupure.sh 30 1
 ```
 
-| Mesure, coupure de 30 secondes, 45 messages attendus | Rejoués par le broker | Manquants |
+| Mesure, coupure de 30 secondes, 45 à 48 messages publiés selon la durée réelle | Rejoués par le broker | Manquants |
 |---|---|---|
 | Avant correction | 2 | 43 |
 | Après correction | 32 | 16 |
@@ -100,19 +91,17 @@ la première version de l'ADR 12.
 
 | Question | Réponse |
 |---|---|
-| Votre `/health` renvoie ok si PostgreSQL répond. Si MQTT est indisponible, êtes-vous réellement healthy ? | Non, et c'était le cas le plus trompeur : l'API annonçait `ok` alors que plus aucune mesure n'entrait. `/health` répond maintenant `degraded` et nomme le composant en cause |
-| Si MongoDB est indisponible, que se passe-t-il ? | Au démarrage, le processus ne démarre pas du tout. En cours de route, chaque message reçu est perdu un par un, avec une trace `status="perdu"`, et le job de consolidation échoue à chaque passage. Nous l'avons reproduit : 24 messages perdus en 20 secondes pendant que `/health` répondait `ok`. Il répond maintenant `degraded` |
-| L'API peut-elle continuer à répondre alors que plus aucune télémétrie n'est ingérée ? | Oui, et c'est voulu : le consommateur MQTT et le serveur HTTP sont indépendants, donc les mesures déjà en base restent consultables. C'est une qualité, à condition que le service le dise, ce qui n'était pas le cas |
-| Quelle différence faites-vous entre liveness et readiness ? | La liveness dit si le processus est vivant et s'il faut le redémarrer. La readiness dit s'il est en état de servir des requêtes. Redémarrer ne répare pas un broker absent, donc une chaîne d'ingestion cassée ne doit pas faire échouer la liveness |
-| Quels composants doivent participer au calcul de l'état de santé ? | Les trois dont dépend l'ingestion : le broker apporte les messages, MongoDB les conserve, PostgreSQL reçoit le résultat. Ils sont maintenant listés un par un dans la réponse |
-| Quels composants peuvent être indisponibles sans empêcher l'API de répondre ? | Le broker et MongoDB. Sans eux, l'API sert encore l'historique et l'état courant, simplement figés. PostgreSQL est le seul indispensable |
-| Comment représenteriez-vous un état `degraded` ? | Par un état global, plus le détail par composant. `ok` quand tout fonctionne, `degraded` quand l'API répond mais que l'ingestion est cassée, `down` quand PostgreSQL ne répond plus |
-| Quel état un orchestrateur doit-il utiliser pour décider de redémarrer le processus ? | Le code HTTP, et lui seul. 200 tant que le service peut répondre, y compris en `degraded`, et 503 quand PostgreSQL est perdu. Redémarrer sur un broker absent ferait boucler les redémarrages sans rien réparer |
-| Quel état présenter à un exploitant pour comprendre que la chaîne est partiellement dégradée ? | Le corps de la réponse, qui nomme le composant fautif, et le tableau de bord Grafana dont la première section répond à « la chaîne fonctionne-t-elle en ce moment » |
+| Votre `/health` renvoie ok si PostgreSQL répond. Si MQTT est indisponible, êtes-vous réellement healthy ? | Non. L'API disait `ok` alors que plus rien n'entrait. Elle répond maintenant `degraded` avec le composant en cause |
+| Si MongoDB est indisponible, que se passe-t-il ? | Au démarrage, le processus ne démarre pas. Ensuite, chaque message est perdu : 24 en 20 secondes avec `/health` à `ok`. Maintenant : `degraded` |
+| L'API peut-elle continuer à répondre alors que plus aucune télémétrie n'est ingérée ? | Oui, c'est voulu, car MQTT et HTTP sont indépendants. Mais il faut le signaler |
+| Quelle différence faites-vous entre liveness et readiness ? | Liveness : faut-il redémarrer. Readiness : peut-il servir. Une ingestion cassée ne fait pas échouer la liveness, car redémarrer ne répare pas un broker absent |
+| Quels composants doivent participer au calcul de l'état de santé ? | Broker, MongoDB et PostgreSQL, car l'ingestion dépend des trois |
+| Quels composants peuvent être indisponibles sans empêcher l'API de répondre ? | Le broker et MongoDB : l'API sert alors des données figées |
+| Comment représenteriez-vous un état `degraded` ? | `ok`, `degraded` si l'ingestion est cassée, `down` sans PostgreSQL, plus le détail par composant |
+| Quel état un orchestrateur doit-il utiliser pour décider de redémarrer le processus ? | Le code HTTP : 200 même en `degraded`, 503 sans PostgreSQL |
+| Quel état présenter à un exploitant pour comprendre que la chaîne est partiellement dégradée ? | Le corps de la réponse, qui nomme le composant, et le tableau de bord Grafana |
 
-Décision : corrigé. `/health` teste maintenant les trois composants, renvoie `ok`, `degraded`
-ou `down`, et sépare le code HTTP, lu par un orchestrateur, du détail, lu par un humain. Le
-champ `db` est conservé pour ne pas casser les appelants écrits en J1.
+Décision : corrigé. Le champ `db` reste pour les appelants de J1.
 
 ```sh
 curl -s -w " (HTTP %{http_code})\n" http://localhost:3000/health
@@ -125,13 +114,9 @@ docker compose stop mosquitto && sleep 12 && curl -s http://localhost:3000/healt
 
 ## Ce que ces questions ont changé
 
-Deux vrais défauts trouvés et corrigés : l'auto-enregistrement, qui laissait n'importe qui
-créer une salle affichée au téléphone, et l'écouteur MQTT posé trop tard, qui vidait la
-reprise après coupure. Le second a aussi montré qu'une analyse écrite en J3 était fausse : la
-perte était attribuée à une limite de MQTT alors qu'elle venait de notre code.
+Deux défauts corrigés : l'auto-enregistrement et l'écouteur MQTT posé trop tard. Le second a
+montré que notre analyse de J3 était fausse.
 
-Deux comportements acceptés après vérification : les champs inconnus ignorés en silence, et la
-contrainte de déduplication qui repose sur une hypothèse concernant le producteur.
+Deux comportements acceptés : les champs inconnus ignorés et la déduplication.
 
-Un point reste ouvert : la perte résiduelle des premières secondes d'une coupure, dont nous
-n'avons pas trouvé la cause.
+Un point ouvert : la perte des premières secondes d'une coupure.

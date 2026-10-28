@@ -1,66 +1,63 @@
 # Sécurité
 
-Ce document décrit la cible. À la fin de J5, le 28 octobre 2026, l'authentification et les
-droits ne sont pas implémentés et l'API est ouverte. C'est un écart au périmètre, gelé après J5.
+Ce document décrit la cible. Fin J5 (28 octobre 2026), authentification et droits ne sont pas
+faits : l'API est ouverte. Écart au périmètre, gelé après J5.
 
 ## Identités
 
-Les objets sont identifiés par leur `device_id`, présent dans le topic MQTT et dans le message.
-On vérifie que les deux correspondent à l'ingestion, et un message portant l'identifiant d'un
-autre capteur est rejeté. Le QR code ne contient que cet identifiant public, sans aucun droit.
+Un objet est identifié par son `device_id`, dans le topic MQTT et dans le message. À
+l'ingestion, les deux doivent être égaux, sinon le message est rejeté. Le QR code ne contient
+que cet identifiant public, sans aucun droit.
 
-Les utilisateurs ont un compte, mot de passe haché avec argon2. La connexion renvoie un jeton JWT
-signé, à durée de vie courte.
+Mot de passe utilisateur haché en argon2. La connexion renvoie un JWT signé de courte durée.
 
 ## Droits
 
-Deux droits distincts, consulter et commander. Le contrôle est fait dans un hook Fastify qui
-s'exécute avant la route. Masquer un bouton dans l'application ne contrôle rien, et c'est le
-scénario R11 qui vérifie qu'un appel direct avec un compte sans droit est bien refusé. Les rôles
-sont lus en base à chaque appel, pour qu'un jeton émis avant un retrait de droit cesse d'autoriser.
+Deux droits : consulter et commander, contrôlés par un hook Fastify avant la route. Cacher un
+bouton ne protège rien : R11 vérifie qu'un appel direct sans droit est refusé. Les rôles sont
+relus en base à chaque appel, donc un retrait de droit vaut tout de suite.
 
 ## Secrets
 
-Le mot de passe de la base et la clé de signature des jetons sont des variables d'environnement,
-listées sans valeur sensible dans `.env.example`. Le Compose refuse de démarrer si le fichier
-`.env` n'a pas été créé. Les identifiants du kit (`backend-demo`, `teacher-demo`) sont des
-identifiants de démonstration publics fournis par l'école, pas des secrets.
+Mot de passe de la base et clé de signature des jetons en variables d'environnement, listées
+sans valeur sensible dans `.env.example`. Le Compose ne démarre pas sans `.env`. Les
+identifiants du kit (`backend-demo`, `teacher-demo`) sont des identifiants de démo publics de
+l'école, pas des secrets.
 
 ## Protection des échanges
 
-Rien n'est chiffré. Le broker MQTT du kit écoute en clair sur 127.0.0.1. Le téléphone appelle
-l'API en HTTP simple sur le réseau local, parce qu'un certificat HTTPS valide sur une adresse IP
-privée n'est pas réalisable dans le temps du projet. Quelqu'un sur le même réseau Wi-Fi pourrait
-lire les échanges, dont le jeton.
+Rien n'est chiffré. Le broker du kit écoute en clair sur 127.0.0.1. Le téléphone appelle l'API
+en HTTP sur le réseau local, car un certificat HTTPS valide sur une IP privée n'était pas
+faisable dans le temps du projet. Quelqu'un sur le même Wi-Fi pourrait lire les échanges, jeton
+compris.
 
-Le broker refuse quand même les connexions anonymes, chaque rôle a son compte, et l'ACL du kit limite
-les droits par topic. Notre backend ne peut pas publier de fausses mesures ni déclencher d'incidents.
+Mais le broker refuse l'anonyme, chaque rôle a son compte et l'ACL du kit limite les topics.
+Notre backend ne peut ni publier de fausses mesures ni déclencher d'incidents.
 
 ## Données conservées
 
 | Donnée | Ce qu'on garde | Combien de temps |
 |---|---|---|
-| Mesures | Température, CO2, les deux dates, l'identifiant du message | 7 jours, supprimées automatiquement par TimescaleDB |
+| Mesures | Température, CO2, deux dates, identifiant du message | 7 jours (TimescaleDB) |
 | Dernier état | Une ligne par objet, écrasée | Tant que l'objet existe |
-| Commandes | Qui a demandé quoi, quand, et le résultat | Conservées, elles servent de trace |
-| Alertes | L'objet, la salle, les dates et valeurs de début, de pic et de fin | Conservées, quelques lignes par jour et par salle |
-| Utilisateurs | Identifiant de connexion et mot de passe haché | Tant que le compte existe |
-| Messages bruts | Le message MQTT tel qu'il est arrivé, dans MongoDB | 7 jours, supprimés par un index TTL |
-| Cache du téléphone | La dernière réponse de l'API, sur le disque de l'appareil | 24 heures |
+| Commandes | Qui a demandé quoi, quand, résultat | Gardées, c'est la trace |
+| Alertes | Objet, salle, dates et valeurs de début, pic, fin | Gardées, quelques lignes par jour et par salle |
+| Utilisateurs | Identifiant et mot de passe haché | Tant que le compte existe |
+| Messages bruts | Message MQTT reçu, dans MongoDB | 7 jours (index TTL) |
+| Cache du téléphone | Dernière réponse de l'API | 24 heures |
 
-Aucune donnée personnelle au delà de l'identifiant de connexion, ni position du téléphone ni
-identifiant d'appareil. Le cache est écrit en clair par AsyncStorage et ne contient que des mesures
-de salle. Le jour où l'application gardera un jeton de session, il ira dans `expo-secure-store`.
+Aucune autre donnée personnelle que l'identifiant de connexion : ni position, ni identifiant
+d'appareil.
 
-MongoDB tourne sans authentification, comme PostgreSQL. Leurs ports ne sont ouverts que sur
-`127.0.0.1`. Seule l'API est exposée au réseau local, parce que le téléphone doit l'atteindre.
+MongoDB et PostgreSQL tournent sans authentification, ports ouverts sur `127.0.0.1` seulement.
+Seule l'API est exposée au réseau local, pour le téléphone.
 
 ## Limites de l'environnement pédagogique
 
-- Le cache des mesures est en clair dans le stockage de l'application. Quand l'application
-  gardera un jeton, il ira dans le Trousseau iOS via `expo-secure-store`.
-- Le compte MQTT du simulateur est partagé entre les trois objets, sans identité par appareil.
-- Un jeton JWT ne peut pas être révoqué avant son expiration. On compense par une durée de vie
-  courte, sans mécanisme de rafraîchissement.
-- Pas de limitation du nombre de tentatives de connexion.
-- Le dépôt est public, donc tout ce qui s'y trouve est lisible par tous.
+- Cache en clair dans AsyncStorage, mais seulement des mesures de salle. Un futur jeton ira
+  dans le Trousseau iOS via `expo-secure-store`.
+- Un seul compte MQTT pour les trois objets du simulateur.
+- Un JWT n'est pas révocable avant expiration. On compense par une durée courte, sans
+  rafraîchissement.
+- Pas de limite de tentatives de connexion.
+- Dépôt public : tout y est lisible par tous.
